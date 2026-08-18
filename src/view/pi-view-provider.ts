@@ -1,4 +1,6 @@
 import * as vscode from "vscode";
+import type { ChatEvent, ChatState } from "../chat/chat-reducer.js";
+import { initialChatState, reduceChat } from "../chat/chat-reducer.js";
 import type { ConnectionSnapshot, HostMessage } from "../protocol.js";
 import { isWebviewMessage } from "../protocol.js";
 import type { PiRuntime } from "../runtime/pi-runtime.js";
@@ -6,6 +8,7 @@ import type { PiRuntime } from "../runtime/pi-runtime.js";
 export class PiViewProvider implements vscode.WebviewViewProvider {
   static readonly viewType = "pi.sidebar";
   #view: vscode.WebviewView | undefined;
+  #chat: ChatState = initialChatState;
 
   constructor(
     private readonly extensionUri: vscode.Uri,
@@ -22,15 +25,38 @@ export class PiViewProvider implements vscode.WebviewViewProvider {
     view.webview.html = this.#html(view.webview);
     view.webview.onDidReceiveMessage((message: unknown) => {
       if (!isWebviewMessage(message)) return;
-      if (message.type === "ready") this.update(this.runtime.snapshot);
-      if (message.type === "reconnect") void this.reconnect();
-      if (message.type === "openSettings") void vscode.commands.executeCommand("pi.openSettings");
+      switch (message.type) {
+        case "ready":
+          this.updateConnection(this.runtime.snapshot);
+          this.#post({ type: "chat", value: this.#chat });
+          break;
+        case "reconnect":
+          void this.reconnect();
+          break;
+        case "openSettings":
+          void vscode.commands.executeCommand("pi.openSettings");
+          break;
+        case "prompt":
+          void this.runtime.prompt(message.text).catch(() => undefined);
+          break;
+        case "abort":
+          void this.runtime.abort().catch(() => undefined);
+          break;
+      }
     });
     void this.reconnect();
   }
 
-  update(snapshot: ConnectionSnapshot): void {
-    const message: HostMessage = { type: "connection", value: snapshot };
+  updateConnection(snapshot: ConnectionSnapshot): void {
+    this.#post({ type: "connection", value: snapshot });
+  }
+
+  updateChat(event: ChatEvent): void {
+    this.#chat = reduceChat(this.#chat, event);
+    this.#post({ type: "chat", value: this.#chat });
+  }
+
+  #post(message: HostMessage): void {
     void this.#view?.webview.postMessage(message);
   }
 

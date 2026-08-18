@@ -3,6 +3,7 @@ import { readdir, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
 import { createInterface } from "node:readline";
+import { isRecord } from "../utils/is-record.js";
 
 export interface SessionSummary {
   id: string;
@@ -28,8 +29,17 @@ export class SessionStore {
       return [];
     }
 
-    const sessions = (await Promise.all(files.map((file) => this.#read(path.join(directory, file), resolvedCwd))))
-      .filter((session): session is SessionSummary => session !== undefined);
+    const sessions: SessionSummary[] = [];
+    let nextIndex = 0;
+    const workers = Array.from({ length: Math.min(8, files.length) }, async () => {
+      while (nextIndex < files.length) {
+        const file = files[nextIndex++];
+        if (!file) continue;
+        const session = await this.#read(path.join(directory, file), resolvedCwd);
+        if (session) sessions.push(session);
+      }
+    });
+    await Promise.all(workers);
     return sessions.sort((left, right) => Date.parse(right.modified) - Date.parse(left.modified));
   }
 
@@ -112,8 +122,4 @@ function extractText(content: unknown): string {
     .map((block) => block.type === "text" && typeof block.text === "string" ? block.text : "")
     .filter(Boolean)
     .join(" ");
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
 }

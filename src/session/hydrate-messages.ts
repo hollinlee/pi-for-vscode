@@ -1,4 +1,5 @@
 import type { ChatMessage, ChatState, ToolCallView } from "../chat/chat-reducer.js";
+import { isRecord } from "../utils/is-record.js";
 
 export function hydrateAgentMessages(value: unknown): ChatState {
   if (!Array.isArray(value)) return { phase: "idle", messages: [], tools: {} };
@@ -65,8 +66,4 @@ function extractText(content: unknown): string {
     .map((block) => block.type === "text" && typeof block.text === "string" ? block.text : "")
     .filter(Boolean)
     .join("\n");
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
 }

@@ -1,4 +1,5 @@
 import type { ChatEvent, ToolCallView } from "./chat-reducer.js";
+import { isRecord } from "../utils/is-record.js";
 
 export class RpcEventNormalizer {
   #assistantSequence = 0;
@@ -98,8 +99,4 @@ function extractResultText(value: unknown): string {
     .map((item) => typeof item.text === "string" ? item.text : "")
     .filter(Boolean)
     .join("\n");
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
 }

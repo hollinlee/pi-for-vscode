@@ -7,6 +7,7 @@ import type { ConnectionSnapshot, SessionSnapshot } from "../protocol.js";
 import { RpcClient } from "../rpc/rpc-client.js";
 import { hydrateAgentMessages } from "../session/hydrate-messages.js";
 import { SessionStore } from "../session/session-store.js";
+import { isRecord } from "../utils/is-record.js";
 
 const execFileAsync = promisify(execFile);
 export const MINIMUM_PI_VERSION = "0.84.2";
@@ -161,7 +162,7 @@ export class PiRuntime extends EventEmitter {
     for (const event of this.#normalizer.normalize(value)) {
       if (event.type === "status") {
         this.#running = event.phase === "streaming" || event.phase === "aborting";
-        if (event.phase === "idle") void this.refreshSessions();
+        if (event.phase === "idle") void this.refreshSessions().catch(() => undefined);
       }
       this.#emitChat(event);
     }
@@ -248,8 +249,4 @@ export function compareVersions(left: string, right: string): number {
 
 function toActionableMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
 }

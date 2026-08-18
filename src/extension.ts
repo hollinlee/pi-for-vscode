@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { access } from "node:fs/promises";
 import path from "node:path";
 import * as vscode from "vscode";
 import { PiRuntime } from "./runtime/pi-runtime.js";
@@ -61,7 +61,7 @@ async function connect(
     return;
   }
   const executable = getExecutable();
-  const restorablePath = sessionPath && existsSync(sessionPath) ? sessionPath : undefined;
+  const restorablePath = sessionPath && await pathExists(sessionPath) ? sessionPath : undefined;
   if (sessionPath && !restorablePath) await context.workspaceState.update(ACTIVE_SESSION_KEY, undefined);
   await runtime.connect(executable, folder.uri.fsPath, restorablePath);
 }
@@ -69,10 +69,16 @@ async function connect(
 async function createSession(runtime: PiRuntime): Promise<void> {
   const folders = vscode.workspace.workspaceFolders ?? [];
   if (folders.length === 0) throw new Error("Open a workspace folder before creating a session");
-  const folder = folders.length === 1 ? folders[0] : await vscode.window.showQuickPick(
-    folders.map((item) => ({ label: item.name, description: item.uri.fsPath, folder: item })),
-    { placeHolder: "Select the workspace folder for the new Pi session" },
-  ).then((selection) => selection?.folder);
+  let folder: vscode.WorkspaceFolder | undefined;
+  if (folders.length === 1) {
+    folder = folders[0];
+  } else {
+    const selection = await vscode.window.showQuickPick(
+      folders.map((item) => ({ label: item.name, description: item.uri.fsPath, folder: item })),
+      { placeHolder: "Select the workspace folder for the new Pi session" },
+    );
+    folder = selection?.folder;
+  }
   if (!folder) return;
 
   const targetCwd = path.resolve(folder.uri.fsPath);
@@ -85,6 +91,15 @@ async function createSession(runtime: PiRuntime): Promise<void> {
 
 function getExecutable(): string {
   return vscode.workspace.getConfiguration("pi").get<string>("executablePath", "pi").trim() || "pi";
+}
+
+async function pathExists(filePath: string): Promise<boolean> {
+  try {
+    await access(filePath);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export function deactivate(): void {}

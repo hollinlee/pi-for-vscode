@@ -1,5 +1,6 @@
 import type { ChatState } from "./chat/chat-reducer.js";
 import type { SessionSummary } from "./session/session-store.js";
+import { isRecord } from "./utils/is-record.js";
 
 export type ConnectionPhase =
   | "disconnected"
@@ -67,8 +68,4 @@ export function isWebviewMessage(value: unknown): value is WebviewMessage {
 function hasOnlyKeys(value: Record<string, unknown>, keys: string[]): boolean {
   const allowed = new Set(keys);
   return Object.keys(value).every((key) => allowed.has(key));
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
 }

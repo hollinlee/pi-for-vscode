@@ -1,5 +1,8 @@
+import { mkdtemp, rm, writeFile, chmod } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
-import { PiRuntime, compareVersions } from "../../src/runtime/pi-runtime.js";
+import { PiRuntime, compareVersions, probePiVersion } from "../../src/runtime/pi-runtime.js";
 
 describe("PiRuntime", () => {
   it("publishes and retains externally supplied availability states", () => {
@@ -11,6 +14,35 @@ describe("PiRuntime", () => {
 
     expect(runtime.snapshot).toEqual({ phase: "untrusted", message: "Trust required" });
     expect(changed).toHaveBeenCalledOnce();
+  });
+
+  it("moves to an actionable error for an incompatible executable", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "pi-runtime-"));
+    const executable = path.join(directory, "pi");
+    await writeFile(executable, '#!/bin/sh\necho "0.1.0"\n');
+    await chmod(executable, 0o755);
+
+    const runtime = new PiRuntime();
+    await runtime.connect(executable, directory);
+
+    expect(runtime.snapshot).toMatchObject({
+      phase: "error",
+      executable,
+      message: expect.stringContaining("incompatible") as string,
+    });
+    await rm(directory, { recursive: true, force: true });
+  });
+});
+
+describe("probePiVersion", () => {
+  it("parses a semantic version from executable output", async () => {
+    await expect(probePiVersion(process.execPath, process.cwd())).resolves.toMatch(/^\d+\.\d+\.\d+$/);
+  });
+
+  it("maps a missing executable to an actionable error", async () => {
+    await expect(probePiVersion("/definitely/missing/pi", process.cwd())).rejects.toThrow(
+      "pi executable not found",
+    );
   });
 });
 

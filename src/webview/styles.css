@@ -24,7 +24,7 @@ button { font: inherit; }
   border-bottom: 1px solid var(--vscode-sideBarSectionHeader-border, var(--vscode-panel-border));
 }
 
-.identity, .actions, .status-mark, .detail-row dt {
+.identity, .actions, .status-mark, .detail-label {
   display: flex;
   align-items: center;
 }
@@ -82,9 +82,8 @@ button { font: inherit; }
   gap: 8px;
   border-bottom: 1px solid var(--vscode-panel-border);
 }
-.detail-row dt { gap: 7px; color: var(--vscode-descriptionForeground); font-size: 11px; }
-.detail-row dd {
-  margin: 0;
+.detail-label { display: flex; align-items: center; gap: 7px; color: var(--vscode-descriptionForeground); font-size: 11px; }
+.detail-value {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

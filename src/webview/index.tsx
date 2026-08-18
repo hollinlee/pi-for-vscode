@@ -60,11 +60,11 @@ function App(): React.JSX.Element {
           </div>
         </div>
 
-        <dl className="details">
+        <div className="details" role="list" aria-label="Connection details">
           <Detail icon={<TerminalSquare size={14} />} label="Executable" value={connection.executable} />
           <Detail icon={<Activity size={14} />} label="Version" value={connection.version} />
           <Detail icon={<Folder size={14} />} label="Workspace" value={connection.cwd} />
-        </dl>
+        </div>
       </section>
     </main>
   );
@@ -72,9 +72,9 @@ function App(): React.JSX.Element {
 
 function Detail({ icon, label, value }: { icon: React.ReactNode; label: string; value?: string }): React.JSX.Element {
   return (
-    <div className="detail-row">
-      <dt>{icon}<span>{label}</span></dt>
-      <dd title={value}>{value ?? "—"}</dd>
+    <div className="detail-row" role="listitem">
+      <div className="detail-label">{icon}<span>{label}</span></div>
+      <div className="detail-value" title={value}>{value ?? "—"}</div>
     </div>
   );
 }

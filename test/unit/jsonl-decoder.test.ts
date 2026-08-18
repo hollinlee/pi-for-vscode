@@ -23,9 +23,18 @@ describe("JsonlDecoder", () => {
     expect(decoder.push(bytes.subarray(split))).toEqual(['{"text":"你好"}']);
   });
 
-  it("rejects an incomplete final record", () => {
+  it("rejects an incomplete final record with its buffered fragment", () => {
     const decoder = new JsonlDecoder();
     decoder.push(Buffer.from('{"a":1}'));
-    expect(() => decoder.end()).toThrow(IncompleteJsonlRecordError);
+
+    let thrown: unknown;
+    try {
+      decoder.end();
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).toBeInstanceOf(IncompleteJsonlRecordError);
+    expect((thrown as IncompleteJsonlRecordError).record).toBe('{"a":1}');
   });
 });

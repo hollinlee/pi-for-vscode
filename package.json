@@ -8,11 +8,22 @@
   "engines": {
     "vscode": "^1.96.0"
   },
-  "categories": ["Other", "Machine Learning"],
-  "extensionKind": ["workspace"],
-  "activationEvents": ["onView:pi.sidebar"],
+  "categories": [
+    "Other",
+    "Machine Learning"
+  ],
+  "extensionKind": [
+    "workspace"
+  ],
+  "activationEvents": [
+    "onView:pi.sidebar"
+  ],
   "main": "./dist/extension.js",
-  "files": ["dist", "media", "package.json"],
+  "files": [
+    "dist",
+    "media",
+    "package.json"
+  ],
   "capabilities": {
     "untrustedWorkspaces": {
       "supported": false,
@@ -69,8 +80,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "vitest run",
-    "test:integration": "vitest run test/integration",
-    "package": "npm run build && vsce package --no-dependencies"
+    "test:integration": "vitest run test/integration"
   },
   "dependencies": {
     "lucide-react": "^0.468.0",
@@ -83,7 +93,6 @@
     "@types/react": "^19.0.3",
     "@types/react-dom": "^19.0.2",
     "@types/vscode": "^1.96.0",
-    "@vscode/vsce": "^3.2.1",
     "esbuild": "^0.24.2",
     "eslint": "^9.17.0",
     "rimraf": "^6.0.1",

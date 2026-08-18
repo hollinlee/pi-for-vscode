@@ -8,11 +8,23 @@ process.stdin.on("data", (chunk) => {
     const line = buffer.slice(0, newline).replace(/\r$/, "");
     buffer = buffer.slice(newline + 1);
     const request = JSON.parse(line);
-    if (request.type === "get_state") {
+    if (request.type === "never") {
+      newline = buffer.indexOf("\n");
+      continue;
+    }
+    if (request.type === "invalid") {
+      process.stdout.write("{invalid json}\n");
+      newline = buffer.indexOf("\n");
+      continue;
+    }
+    if (request.type === "emit_event") {
+      process.stdout.write(`${JSON.stringify({ type: "fixture_event", value: 42 })}\n`);
+    }
+    if (request.type === "get_state" || request.type === "emit_event") {
       const response = {
         id: request.id,
         type: "response",
-        command: "get_state",
+        command: request.type,
         success: true,
         data: { isStreaming: false, sessionId: "fixture" },
       };

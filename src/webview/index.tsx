@@ -203,7 +203,11 @@ function ExtensionDialog({ request }: { request: ExtensionDialogRequest }): Reac
   const respond = (response: ExtensionUiResponse) => vscode.postMessage({ type: "extensionUiResponse", id: request.id, response });
   React.useEffect(() => {
     const cancel = (event: KeyboardEvent) => {
-      if (event.key === "Escape") vscode.postMessage({ type: "extensionUiResponse", id: request.id, response: { kind: "cancelled" } });
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        vscode.postMessage({ type: "extensionUiResponse", id: request.id, response: { kind: "cancelled" } });
+      }
     };
     window.addEventListener("keydown", cancel);
     return () => window.removeEventListener("keydown", cancel);

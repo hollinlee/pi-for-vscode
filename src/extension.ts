@@ -5,6 +5,8 @@ import { PiViewProvider } from "./view/pi-view-provider.js";
 export function activate(context: vscode.ExtensionContext): void {
   const runtime = new PiRuntime();
   const provider = new PiViewProvider(context.extensionUri, runtime, () => connect(runtime));
+  runtime.on("change", () => provider.updateConnection(runtime.snapshot));
+  const unsubscribeChat = runtime.subscribeChat((event) => provider.updateChat(event));
 
   context.subscriptions.push(
     vscode.window.registerWebviewViewProvider(PiViewProvider.viewType, provider, {
@@ -14,10 +16,9 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("pi.openSettings", () =>
       vscode.commands.executeCommand("workbench.action.openSettings", "@ext:hollinlee.pi-for-vscode"),
     ),
+    { dispose: () => unsubscribeChat() },
     { dispose: () => void runtime.dispose() },
   );
-
-  runtime.on("change", () => provider.update(runtime.snapshot));
 }
 
 async function connect(runtime: PiRuntime): Promise<void> {

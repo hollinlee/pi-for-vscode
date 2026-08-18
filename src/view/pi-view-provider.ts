@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
 import type { ChatEvent, ChatState } from "../chat/chat-reducer.js";
 import { initialChatState, reduceChat } from "../chat/chat-reducer.js";
-import type { ConnectionSnapshot, HostMessage } from "../protocol.js";
+import type { ConnectionSnapshot, HostMessage, SessionSnapshot } from "../protocol.js";
 import { isWebviewMessage } from "../protocol.js";
 import type { PiRuntime } from "../runtime/pi-runtime.js";
 
@@ -14,6 +14,7 @@ export class PiViewProvider implements vscode.WebviewViewProvider {
     private readonly extensionUri: vscode.Uri,
     private readonly runtime: PiRuntime,
     private readonly reconnect: () => Promise<void>,
+    private readonly createSession: () => Promise<void>,
   ) {}
 
   resolveWebviewView(view: vscode.WebviewView): void {
@@ -29,22 +30,32 @@ export class PiViewProvider implements vscode.WebviewViewProvider {
         case "ready":
           this.updateConnection(this.runtime.snapshot);
           this.#post({ type: "chat", value: this.#chat });
+          this.updateSession(this.runtime.sessionSnapshot);
           break;
         case "reconnect":
-          void this.reconnect();
+          void this.#run(this.reconnect());
           break;
         case "openSettings":
           void vscode.commands.executeCommand("pi.openSettings");
           break;
+        case "newSession":
+          void this.#run(this.createSession());
+          break;
+        case "refreshSessions":
+          void this.#run(this.runtime.refreshSessions());
+          break;
+        case "switchSession":
+          void this.#run(this.runtime.switchSession(message.path));
+          break;
         case "prompt":
-          void this.runtime.prompt(message.text).catch(() => undefined);
+          void this.#run(this.runtime.prompt(message.text));
           break;
         case "abort":
-          void this.runtime.abort().catch(() => undefined);
+          void this.#run(this.runtime.abort());
           break;
       }
     });
-    void this.reconnect();
+    void this.#run(this.reconnect());
   }
 
   updateConnection(snapshot: ConnectionSnapshot): void {
@@ -54,6 +65,18 @@ export class PiViewProvider implements vscode.WebviewViewProvider {
   updateChat(event: ChatEvent): void {
     this.#chat = reduceChat(this.#chat, event);
     this.#post({ type: "chat", value: this.#chat });
+  }
+
+  updateSession(snapshot: SessionSnapshot): void {
+    this.#post({ type: "session", value: snapshot });
+  }
+
+  async #run(operation: Promise<void>): Promise<void> {
+    try {
+      await operation;
+    } catch (error) {
+      this.updateChat({ type: "error", message: error instanceof Error ? error.message : String(error) });
+    }
   }
 
   #post(message: HostMessage): void {

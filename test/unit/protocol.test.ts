@@ -8,6 +8,9 @@ describe("isWebviewMessage", () => {
     { type: "ready" },
     { type: "reconnect" },
     { type: "openSettings" },
+    { type: "newSession" },
+    { type: "refreshSessions" },
+    { type: "switchSession", path: "/tmp/session.jsonl" },
     { type: "abort" },
     { type: "prompt", text: "hello" },
   ])("accepts valid message $type", (message) => {
@@ -21,6 +24,8 @@ describe("isWebviewMessage", () => {
     { type: "prompt", text: 4 },
     { type: "prompt", text: LONG_PROMPT },
     { type: "prompt", text: "hello", extra: true },
+    { type: "switchSession", path: "" },
+    { type: "switchSession", path: "/tmp/session.jsonl", extra: true },
     { type: "abort", extra: true },
     { type: "unknown" },
   ])("rejects malformed message", (message) => {

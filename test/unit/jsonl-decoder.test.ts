@@ -26,6 +26,7 @@ describe("JsonlDecoder", () => {
   it("rejects records and unterminated buffers above the configured limit", () => {
     const complete = new JsonlDecoder(5);
     expect(() => complete.push(Buffer.from("123456\n"))).toThrow(JsonlRecordTooLargeError);
+    expect(complete.push(Buffer.from("ok\n"))).toEqual(["ok"]);
 
     const incomplete = new JsonlDecoder(5);
     expect(() => incomplete.push(Buffer.from("123456"))).toThrow(JsonlRecordTooLargeError);

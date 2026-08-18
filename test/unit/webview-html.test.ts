@@ -13,6 +13,9 @@ describe("buildWebviewHtml", () => {
     expect(html).toContain("default-src 'none'");
     expect(html).toContain("base-uri 'none'");
     expect(html).toContain("form-action 'none'");
+    expect(html).toContain("frame-ancestors 'none'");
+    expect(html).toContain("img-src 'none'");
+    expect(html).toContain("connect-src 'none'");
     expect(html).toContain("script-src 'nonce-nonce-123'");
     expect(html).toContain('script nonce="nonce-123"');
     expect(html).not.toContain("unsafe-inline");

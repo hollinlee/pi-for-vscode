@@ -53,5 +53,9 @@ describe("isSafeExternalUrl", () => {
     expect(isSafeExternalUrl("http://localhost:3000")).toBe(true);
     expect(isSafeExternalUrl("command:workbench.action.openSettings")).toBe(false);
     expect(isSafeExternalUrl("data:text/html,hello")).toBe(false);
+    expect(isSafeExternalUrl("")).toBe(false);
+    expect(isSafeExternalUrl("x".repeat(4097))).toBe(false);
+    expect(isSafeExternalUrl("/relative")).toBe(false);
+    expect(isSafeExternalUrl("https://user:pass@example.com")).toBe(false);
   });
 });

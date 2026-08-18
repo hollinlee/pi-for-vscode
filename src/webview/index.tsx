@@ -188,9 +188,24 @@ function MessageView({ message, tools }: { message: ChatMessage; tools: ChatStat
           <ReactMarkdown
             remarkPlugins={[remarkGfm]}
             components={{
-              a: ({ href, children }) => href && isSafeExternalUrl(href)
-                ? <a href={href} onClick={(event) => { event.preventDefault(); vscode.postMessage({ type: "openExternal", url: href }); }}>{children}</a>
-                : <span>{children}</span>,
+              a: ({ href, children, node, ...props }) => {
+                void node;
+                return href && isSafeExternalUrl(href)
+                  ? (
+                    <a
+                      {...props}
+                      href={href}
+                      onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        vscode.postMessage({ type: "openExternal", url: href });
+                      }}
+                    >
+                      {children}
+                    </a>
+                  )
+                  : <span {...props}>{children}</span>;
+              },
             }}
           >
             {message.text}

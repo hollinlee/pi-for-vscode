@@ -90,6 +90,7 @@ export class PiRuntime extends EventEmitter {
     try {
       await client.request("abort");
     } catch (error) {
+      this.#running = false;
       this.#emitChat({ type: "error", message: toActionableMessage(error) });
       throw error;
     }

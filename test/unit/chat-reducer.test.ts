@@ -42,6 +42,14 @@ describe("reduceChat", () => {
     expect(state.messages[0]?.toolIds).toEqual(["t1"]);
   });
 
+  it("clears a prior error when returning to a non-error phase", () => {
+    let state = reduceChat(initialChatState, { type: "error", message: "failed" });
+    state = reduceChat(state, { type: "status", phase: "aborting" });
+    expect(state).toMatchObject({ phase: "aborting", error: undefined });
+    state = reduceChat(state, { type: "status", phase: "idle" });
+    expect(state).toMatchObject({ phase: "idle", error: undefined });
+  });
+
   it("retains messages while surfacing errors and resets authoritatively", () => {
     let state = reduceChat(initialChatState, { type: "user", id: "u1", text: "hello" });
     state = reduceChat(state, { type: "error", message: "failed" });

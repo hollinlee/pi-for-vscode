@@ -49,6 +49,34 @@ describe("RpcEventNormalizer", () => {
     })).toEqual([{ type: "tool_end", id: "t1", output: "done", isError: false }]);
   });
 
+  it("normalizes extension and tool failures", () => {
+    const normalizer = new RpcEventNormalizer();
+    expect(normalizer.normalize({ type: "extension_error", error: "Extension boom" })).toEqual([
+      { type: "error", message: "Extension boom" },
+    ]);
+    expect(normalizer.normalize({
+      type: "tool_execution_end",
+      toolCallId: "t1",
+      result: { content: [{ type: "text", text: "failed" }] },
+      isError: true,
+    })).toEqual([{ type: "tool_end", id: "t1", output: "failed", isError: true }]);
+  });
+
+  it("clears the active message on settle and restarts ids on reset", () => {
+    const normalizer = new RpcEventNormalizer();
+    expect(normalizer.normalize({ type: "message_start", message: { role: "assistant" } })).toEqual([
+      { type: "assistant_start", id: "assistant-1" },
+    ]);
+    normalizer.normalize({ type: "agent_settled" });
+    expect(normalizer.normalize({ type: "message_start", message: { role: "assistant" } })).toEqual([
+      { type: "assistant_start", id: "assistant-2" },
+    ]);
+    normalizer.reset();
+    expect(normalizer.normalize({ type: "message_start", message: { role: "assistant" } })).toEqual([
+      { type: "assistant_start", id: "assistant-1" },
+    ]);
+  });
+
   it("ignores malformed and unrelated events", () => {
     const normalizer = new RpcEventNormalizer();
     expect(normalizer.normalize(null)).toEqual([]);

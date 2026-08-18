@@ -5,6 +5,7 @@ export class RpcEventNormalizer {
   #currentAssistantId: string | undefined;
 
   reset(): void {
+    this.#assistantSequence = 0;
     this.#currentAssistantId = undefined;
   }
 

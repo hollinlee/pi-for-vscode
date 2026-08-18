@@ -4,6 +4,8 @@ import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { PiRuntime, compareVersions, probePiVersion } from "../../src/runtime/pi-runtime.js";
 
+const fakePi = path.resolve("test/fixtures/fake-pi.mjs");
+
 describe("PiRuntime", () => {
   it("publishes and retains externally supplied availability states", () => {
     const runtime = new PiRuntime();
@@ -31,6 +33,17 @@ describe("PiRuntime", () => {
       message: expect.stringContaining("incompatible") as string,
     });
     await rm(directory, { recursive: true, force: true });
+  });
+
+  it("recovers its running guard after an abort request fails", async () => {
+    const runtime = new PiRuntime();
+    await runtime.connect(fakePi, process.cwd());
+    expect(runtime.snapshot.phase).toBe("ready");
+
+    await runtime.prompt("first");
+    await expect(runtime.abort()).rejects.toThrow("abort failed");
+    await expect(runtime.prompt("second")).resolves.toBeUndefined();
+    await runtime.dispose();
   });
 });
 

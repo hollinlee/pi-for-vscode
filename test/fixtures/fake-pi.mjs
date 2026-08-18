@@ -47,8 +47,14 @@ process.stdin.on("data", (chunk) => {
     }
     if (request.type === "prompt") {
       respond(request, true);
-      process.stdout.write(`${JSON.stringify({ type: "agent_start" })}\n`);
-      emitUiForPrompt(request.message);
+      if (request.message === "protocol-error") {
+        process.stdout.write("{invalid json}\n");
+      } else if (request.message === "crash") {
+        setTimeout(() => process.exit(17), 5);
+      } else {
+        process.stdout.write(`${JSON.stringify({ type: "agent_start" })}\n`);
+        emitUiForPrompt(request.message);
+      }
     }
     if (request.type === "extension_ui_response") {
       process.stdout.write(`${JSON.stringify({ type: "extension_ui_request", id: `notify-${request.id}`, method: "notify", message: JSON.stringify(request), notifyType: "info" })}\n`);

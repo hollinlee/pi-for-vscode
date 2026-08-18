@@ -5,6 +5,14 @@
   "version": "0.0.1",
   "publisher": "hollinlee",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hollinlee/pi-for-vscode.git"
+  },
+  "bugs": {
+    "url": "https://github.com/hollinlee/pi-for-vscode/issues"
+  },
+  "homepage": "https://github.com/hollinlee/pi-for-vscode#readme",
   "engines": {
     "vscode": "^1.96.0"
   },
@@ -22,7 +30,10 @@
   "files": [
     "dist",
     "media",
-    "package.json"
+    "package.json",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
   ],
   "capabilities": {
     "untrustedWorkspaces": {
@@ -80,7 +91,11 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "vitest run",
-    "test:integration": "vitest run test/integration"
+    "test:integration": "vitest run test/integration",
+    "test:vscode": "node test/run-vscode-tests.mjs",
+    "smoke:rpc": "node test/smoke/rpc-smoke.mjs",
+    "verify": "npm run typecheck && npm run lint && npm test && npm run build",
+    "package": "npm run build && npx --yes @vscode/vsce@3.9.2 package --no-dependencies --out pi-for-vscode-${npm_package_version}.vsix"
   },
   "dependencies": {
     "lucide-react": "^0.468.0",
@@ -95,11 +110,12 @@
     "@types/react": "^19.0.3",
     "@types/react-dom": "^19.0.2",
     "@types/vscode": "^1.96.0",
-    "esbuild": "^0.24.2",
+    "@vscode/test-electron": "^2.5.2",
+    "esbuild": "^0.28.2",
     "eslint": "^9.17.0",
     "rimraf": "^6.0.1",
     "typescript": "^5.7.2",
     "typescript-eslint": "^8.19.1",
-    "vitest": "^2.1.8"
+    "vitest": "^4.1.10"
   }
 }

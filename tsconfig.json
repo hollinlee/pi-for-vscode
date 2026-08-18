@@ -12,5 +12,5 @@
     "types": ["node", "vscode", "vitest/globals"],
     "noEmit": true
   },
-  "include": ["src", "test", "eslint.config.mjs", "esbuild.mjs", "vitest.config.ts"]
+  "include": ["src", "test", "eslint.config.mjs", "esbuild.mjs", "vitest.config.mts"]
 }

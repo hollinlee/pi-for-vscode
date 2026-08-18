@@ -10,6 +10,7 @@ import type {
 } from "../protocol.js";
 import { isWebviewMessage } from "../protocol.js";
 import type { PiRuntime } from "../runtime/pi-runtime.js";
+import { buildWebviewHtml } from "./webview-html.js";
 
 export class PiViewProvider implements vscode.WebviewViewProvider {
   static readonly viewType = "pi.sidebar";
@@ -62,6 +63,11 @@ export class PiViewProvider implements vscode.WebviewViewProvider {
           break;
         case "extensionUiResponse":
           void this.#run(this.runtime.respondExtensionUi(message.id, message.response));
+          break;
+        case "openExternal":
+          void this.#run((async () => {
+            await vscode.env.openExternal(vscode.Uri.parse(message.url));
+          })());
           break;
         case "prompt":
           void this.#run(this.runtime.prompt(message.text));
@@ -116,20 +122,12 @@ export class PiViewProvider implements vscode.WebviewViewProvider {
     const nonce = createNonce();
     const script = webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, "dist", "webview.js"));
     const style = webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, "dist", "webview.css"));
-    return `<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource}; script-src 'nonce-${nonce}';">
-  <link rel="stylesheet" href="${style.toString()}">
-  <title>Pi</title>
-</head>
-<body>
-  <div id="root"></div>
-  <script nonce="${nonce}" src="${script.toString()}"></script>
-</body>
-</html>`;
+    return buildWebviewHtml({
+      nonce,
+      cspSource: webview.cspSource,
+      scriptUri: script.toString(),
+      styleUri: style.toString(),
+    });
   }
 }
 

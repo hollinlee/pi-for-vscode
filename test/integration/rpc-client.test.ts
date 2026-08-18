@@ -45,6 +45,25 @@ describe("RpcClient integration", () => {
     await expect(pending).resolves.toBeInstanceOf(Error);
   });
 
+  it("rejects malformed response schemas as protocol errors", async () => {
+    const client = RpcClient.launch(process.execPath, [fixture]);
+    const protocolError = nextEvent(client, "protocolError");
+    const pending = client.request("malformed_response").catch((error: unknown) => error);
+
+    await expect(protocolError).resolves.toMatchObject({ message: "Invalid pi RPC response schema" });
+    await client.dispose();
+    await expect(pending).resolves.toBeInstanceOf(Error);
+  });
+
+  it("reports an incomplete final record when the child exits", async () => {
+    const client = RpcClient.launch(process.execPath, [fixture]);
+    const protocolError = nextEvent(client, "protocolError");
+    const pending = client.request("incomplete_exit").catch((error: unknown) => error);
+
+    await expect(protocolError).resolves.toMatchObject({ message: "RPC stream ended with an incomplete JSONL record" });
+    await expect(pending).resolves.toBeInstanceOf(Error);
+  });
+
   it("emits non-response records while resolving the request", async () => {
     const client = RpcClient.launch(process.execPath, [fixture]);
     const event = nextEvent(client, "event");

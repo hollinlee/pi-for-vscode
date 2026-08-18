@@ -17,6 +17,17 @@ process.stdin.on("data", (chunk) => {
       newline = buffer.indexOf("\n");
       continue;
     }
+    if (request.type === "malformed_response") {
+      process.stdout.write(`${JSON.stringify({ id: request.id, type: "response", command: request.type, success: "yes" })}\n`);
+      newline = buffer.indexOf("\n");
+      continue;
+    }
+    if (request.type === "incomplete_exit") {
+      process.stdout.write('{"type":"partial"');
+      setTimeout(() => process.exit(0), 5);
+      newline = buffer.indexOf("\n");
+      continue;
+    }
     if (request.type === "emit_event") {
       process.stdout.write(`${JSON.stringify({ type: "fixture_event", value: 42 })}\n`);
     }

@@ -57,6 +57,13 @@ export class RpcClient extends EventEmitter {
     return this.process.pid;
   }
 
+  send(message: Record<string, unknown>): Promise<void> {
+    if (this.#disposed) return Promise.reject(new Error("pi RPC client is disposed"));
+    return new Promise((resolve, reject) => {
+      this.process.stdin.write(`${JSON.stringify(message)}\n`, (error) => error ? reject(error) : resolve());
+    });
+  }
+
   request(type: string, fields: Record<string, unknown> = {}): Promise<unknown> {
     if (this.#disposed) return Promise.reject(new Error("pi RPC client is disposed"));
     const id = `vscode-${++this.#sequence}`;

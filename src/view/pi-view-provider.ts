@@ -1,7 +1,13 @@
 import * as vscode from "vscode";
 import type { ChatEvent, ChatState } from "../chat/chat-reducer.js";
 import { initialChatState, reduceChat } from "../chat/chat-reducer.js";
-import type { ConnectionSnapshot, HostMessage, SessionSnapshot } from "../protocol.js";
+import type {
+  ConnectionSnapshot,
+  ControlsSnapshot,
+  ExtensionUiEvent,
+  HostMessage,
+  SessionSnapshot,
+} from "../protocol.js";
 import { isWebviewMessage } from "../protocol.js";
 import type { PiRuntime } from "../runtime/pi-runtime.js";
 
@@ -31,6 +37,7 @@ export class PiViewProvider implements vscode.WebviewViewProvider {
           this.updateConnection(this.runtime.snapshot);
           this.#post({ type: "chat", value: this.#chat });
           this.updateSession(this.runtime.sessionSnapshot);
+          this.updateControls(this.runtime.controlsSnapshot);
           break;
         case "reconnect":
           void this.#run(this.reconnect());
@@ -47,6 +54,15 @@ export class PiViewProvider implements vscode.WebviewViewProvider {
         case "switchSession":
           void this.#run(this.runtime.switchSession(message.path));
           break;
+        case "setModel":
+          void this.#run(this.runtime.setModel(message.provider, message.modelId));
+          break;
+        case "setThinkingLevel":
+          void this.#run(this.runtime.setThinkingLevel(message.level));
+          break;
+        case "extensionUiResponse":
+          void this.#run(this.runtime.respondExtensionUi(message.id, message.response));
+          break;
         case "prompt":
           void this.#run(this.runtime.prompt(message.text));
           break;
@@ -54,6 +70,10 @@ export class PiViewProvider implements vscode.WebviewViewProvider {
           void this.#run(this.runtime.abort());
           break;
       }
+    });
+    view.onDidDispose(() => {
+      if (this.#view === view) this.#view = undefined;
+      void this.runtime.cancelExtensionUi();
     });
     void this.#run(this.reconnect());
   }
@@ -69,6 +89,15 @@ export class PiViewProvider implements vscode.WebviewViewProvider {
 
   updateSession(snapshot: SessionSnapshot): void {
     this.#post({ type: "session", value: snapshot });
+  }
+
+  updateControls(snapshot: ControlsSnapshot): void {
+    this.#post({ type: "controls", value: snapshot });
+  }
+
+  updateExtensionUi(event: ExtensionUiEvent): void {
+    if (event.type === "title" && this.#view) this.#view.title = event.title.slice(0, 100);
+    this.#post({ type: "extensionUi", value: event });
   }
 
   async #run(operation: Promise<void>): Promise<void> {

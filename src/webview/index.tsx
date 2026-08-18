@@ -11,6 +11,7 @@ import {
   RefreshCw,
   Send,
   Settings,
+  SlidersHorizontal,
   Square,
   TerminalSquare,
   Wrench,
@@ -18,18 +19,30 @@ import {
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { initialChatState, type ChatMessage, type ChatState, type ToolCallView } from "../chat/chat-reducer.js";
-import type { ConnectionSnapshot, HostMessage, SessionSnapshot, WebviewMessage } from "../protocol.js";
+import type {
+  ConnectionSnapshot,
+  ControlsSnapshot,
+  ExtensionDialogRequest,
+  ExtensionUiResponse,
+  HostMessage,
+  SessionSnapshot,
+  WebviewMessage,
+} from "../protocol.js";
+import { initialExtensionUiState, reduceExtensionUi } from "./extension-ui-reducer.js";
 import "./styles.css";
 
 declare function acquireVsCodeApi(): { postMessage(message: WebviewMessage): void };
 const vscode = acquireVsCodeApi();
 const initialConnection: ConnectionSnapshot = { phase: "disconnected" };
 const initialSession: SessionSnapshot = { sessions: [] };
+const initialControls: ControlsSnapshot = { models: [], thinkingLevel: "off", thinkingLevels: ["off"] };
 
 function App(): React.JSX.Element {
   const [connection, setConnection] = React.useState(initialConnection);
   const [chat, setChat] = React.useState<ChatState>(initialChatState);
   const [session, setSession] = React.useState<SessionSnapshot>(initialSession);
+  const [controls, setControls] = React.useState<ControlsSnapshot>(initialControls);
+  const [extensionUi, setExtensionUi] = React.useState(initialExtensionUiState);
   const [draft, setDraft] = React.useState("");
 
   React.useEffect(() => {
@@ -37,6 +50,13 @@ function App(): React.JSX.Element {
       if (event.data?.type === "connection") setConnection(event.data.value);
       if (event.data?.type === "chat") setChat(event.data.value);
       if (event.data?.type === "session") setSession(event.data.value);
+      if (event.data?.type === "controls") setControls(event.data.value);
+      if (event.data?.type === "extensionUi") {
+        const value = event.data.value;
+        setExtensionUi((state) => reduceExtensionUi(state, value));
+        if (value.type === "editorText") setDraft(value.text);
+        if (value.type === "title") document.title = value.title;
+      }
     };
     window.addEventListener("message", receive);
     vscode.postMessage({ type: "ready" });
@@ -57,15 +77,23 @@ function App(): React.JSX.Element {
       {connected ? (
         <>
           <SessionBar session={session} disabled={running} />
+          <ControlsBar controls={controls} disabled={running} />
           <MessageStream chat={chat} />
-          <Composer
-            value={draft}
-            running={running}
-            aborting={chat.phase === "aborting"}
-            onChange={setDraft}
-            onSubmit={submit}
-            onAbort={() => vscode.postMessage({ type: "abort" })}
-          />
+          <div className="bottom-area">
+            <ExtensionWidgets widgets={extensionUi.widgets} placement="aboveEditor" />
+            <ExtensionStatuses statuses={extensionUi.statuses} />
+            <Composer
+              value={draft}
+              running={running}
+              aborting={chat.phase === "aborting"}
+              onChange={setDraft}
+              onSubmit={submit}
+              onAbort={() => vscode.postMessage({ type: "abort" })}
+            />
+            <ExtensionWidgets widgets={extensionUi.widgets} placement="belowEditor" />
+          </div>
+          <NotificationStack notifications={extensionUi.notifications} />
+          {extensionUi.dialogs[0] && <ExtensionDialog key={extensionUi.dialogs[0].id} request={extensionUi.dialogs[0]} />}
         </>
       ) : (
         <ConnectionPanel connection={connection} />
@@ -84,21 +112,10 @@ function Toolbar({ connection }: { connection: ConnectionSnapshot }): React.JSX.
         <span>{connection.phase === "ready" ? "RPC READY" : "RPC"}</span>
       </div>
       <div className="actions">
-        <button
-          className="icon-button"
-          title="Refresh connection"
-          aria-label="Refresh connection"
-          disabled={busy}
-          onClick={() => vscode.postMessage({ type: "reconnect" })}
-        >
+        <button className="icon-button" title="Refresh connection" aria-label="Refresh connection" disabled={busy} onClick={() => vscode.postMessage({ type: "reconnect" })}>
           <RefreshCw size={15} className={busy ? "spin" : ""} />
         </button>
-        <button
-          className="icon-button"
-          title="Open Pi settings"
-          aria-label="Open Pi settings"
-          onClick={() => vscode.postMessage({ type: "openSettings" })}
-        >
+        <button className="icon-button" title="Open Pi settings" aria-label="Open Pi settings" onClick={() => vscode.postMessage({ type: "openSettings" })}>
           <Settings size={15} />
         </button>
       </div>
@@ -110,56 +127,49 @@ function SessionBar({ session, disabled }: { session: SessionSnapshot; disabled:
   const activeListed = session.activePath && session.sessions.some((item) => item.path === session.activePath);
   return (
     <div className="session-bar">
-      <select
-        aria-label="Active Pi session"
-        value={session.activePath ?? ""}
-        disabled={disabled}
-        onChange={(event) => event.target.value && vscode.postMessage({ type: "switchSession", path: event.target.value })}
-      >
+      <select aria-label="Active Pi session" value={session.activePath ?? ""} disabled={disabled} onChange={(event) => event.target.value && vscode.postMessage({ type: "switchSession", path: event.target.value })}>
         {!session.activePath && <option value="">New session</option>}
         {session.activePath && !activeListed && <option value={session.activePath}>Current session</option>}
-        {session.sessions.map((item) => (
-          <option key={item.path} value={item.path}>{item.name ?? item.firstMessage}</option>
-        ))}
+        {session.sessions.map((item) => <option key={item.path} value={item.path}>{item.name ?? item.firstMessage}</option>)}
       </select>
-      <button
-        className="icon-button"
-        title="Refresh sessions"
-        aria-label="Refresh sessions"
-        disabled={disabled}
-        onClick={() => vscode.postMessage({ type: "refreshSessions" })}
+      <button className="icon-button" title="Refresh sessions" aria-label="Refresh sessions" disabled={disabled} onClick={() => vscode.postMessage({ type: "refreshSessions" })}><RefreshCw size={14} /></button>
+      <button className="icon-button" title="New session" aria-label="New session" disabled={disabled} onClick={() => vscode.postMessage({ type: "newSession" })}><Plus size={15} /></button>
+    </div>
+  );
+}
+
+function ControlsBar({ controls, disabled }: { controls: ControlsSnapshot; disabled: boolean }): React.JSX.Element {
+  const modelValue = controls.model ? encodeModel(controls.model.provider, controls.model.id) : "";
+  const modelListed = controls.model && controls.models.some((model) => model.provider === controls.model?.provider && model.id === controls.model.id);
+  return (
+    <div className="controls-bar">
+      <SlidersHorizontal size={13} aria-hidden="true" />
+      <select
+        aria-label="Pi model"
+        value={modelValue}
+        disabled={disabled || controls.models.length === 0}
+        onChange={(event) => {
+          const selected = controls.models.find((model) => encodeModel(model.provider, model.id) === event.target.value);
+          if (selected) vscode.postMessage({ type: "setModel", provider: selected.provider, modelId: selected.id });
+        }}
       >
-        <RefreshCw size={14} />
-      </button>
-      <button
-        className="icon-button"
-        title="New session"
-        aria-label="New session"
-        disabled={disabled}
-        onClick={() => vscode.postMessage({ type: "newSession" })}
-      >
-        <Plus size={15} />
-      </button>
+        {!controls.model && <option value="">No model</option>}
+        {controls.model && !modelListed && <option value={modelValue}>{controls.model.name}</option>}
+        {controls.models.map((model) => <option key={encodeModel(model.provider, model.id)} value={encodeModel(model.provider, model.id)}>{model.provider} / {model.name}</option>)}
+      </select>
+      <select aria-label="Pi thinking level" value={controls.thinkingLevel} disabled={disabled} onChange={(event) => vscode.postMessage({ type: "setThinkingLevel", level: event.target.value })}>
+        {controls.thinkingLevels.map((level) => <option key={level} value={level}>{level}</option>)}
+      </select>
     </div>
   );
 }
 
 function MessageStream({ chat }: { chat: ChatState }): React.JSX.Element {
   const end = React.useRef<HTMLDivElement>(null);
-  React.useEffect(() => {
-    end.current?.scrollIntoView({ block: "end" });
-  }, [chat]);
-
+  React.useEffect(() => { end.current?.scrollIntoView({ block: "end" }); }, [chat]);
   return (
     <section className="message-stream" aria-live="polite" aria-busy={chat.phase === "streaming"}>
-      {chat.messages.length === 0 ? (
-        <div className="empty-state">
-          <TerminalSquare size={20} aria-hidden="true" />
-          <span>RPC ready</span>
-        </div>
-      ) : chat.messages.map((message) => (
-        <MessageView key={message.id} message={message} tools={chat.tools} />
-      ))}
+      {chat.messages.length === 0 ? <div className="empty-state"><TerminalSquare size={20} aria-hidden="true" /><span>RPC ready</span></div> : chat.messages.map((message) => <MessageView key={message.id} message={message} tools={chat.tools} />)}
       {chat.error && <div className="chat-error" role="alert">{chat.error}</div>}
       {chat.phase === "streaming" && <div className="working"><LoaderCircle size={13} className="spin" /> Working</div>}
       <div ref={end} />
@@ -168,22 +178,11 @@ function MessageStream({ chat }: { chat: ChatState }): React.JSX.Element {
 }
 
 function MessageView({ message, tools }: { message: ChatMessage; tools: ChatState["tools"] }): React.JSX.Element {
-  if (message.role === "user") {
-    return <article className="message user-message"><div className="plain-text">{message.text}</div></article>;
-  }
+  if (message.role === "user") return <article className="message user-message"><div className="plain-text">{message.text}</div></article>;
   return (
     <article className="message assistant-message">
-      {message.thinking && (
-        <details className="thinking-row">
-          <summary><Brain size={13} /> Thinking</summary>
-          <div className="thinking-text">{message.thinking}</div>
-        </details>
-      )}
-      {message.text && (
-        <div className="markdown">
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.text}</ReactMarkdown>
-        </div>
-      )}
+      {message.thinking && <details className="thinking-row"><summary><Brain size={13} /> Thinking</summary><div className="thinking-text">{message.thinking}</div></details>}
+      {message.text && <div className="markdown"><ReactMarkdown remarkPlugins={[remarkGfm]}>{message.text}</ReactMarkdown></div>}
       {message.toolIds.map((id) => tools[id] && <ToolRow key={id} tool={tools[id]} />)}
     </article>
   );
@@ -193,54 +192,63 @@ function ToolRow({ tool }: { tool: ToolCallView }): React.JSX.Element {
   const Icon = tool.status === "running" ? LoaderCircle : tool.status === "success" ? CheckCircle2 : CircleX;
   return (
     <details className={`tool-row tool-${tool.status}`}>
-      <summary>
-        <Icon size={13} className={tool.status === "running" ? "spin" : ""} />
-        <Wrench size={12} />
-        <span>{tool.name}</span>
-        <span className="tool-status">{tool.status}</span>
-      </summary>
-      <div className="tool-detail">
-        <div className="tool-heading">Arguments</div>
-        <pre>{formatValue(tool.args)}</pre>
-        {tool.output && <><div className="tool-heading">Result</div><pre>{tool.output}</pre></>}
-      </div>
+      <summary><Icon size={13} className={tool.status === "running" ? "spin" : ""} /><Wrench size={12} /><span>{tool.name}</span><span className="tool-status">{tool.status}</span></summary>
+      <div className="tool-detail"><div className="tool-heading">Arguments</div><pre>{formatValue(tool.args)}</pre>{tool.output && <><div className="tool-heading">Result</div><pre>{tool.output}</pre></>}</div>
     </details>
   );
 }
 
-function Composer(props: {
-  value: string;
-  running: boolean;
-  aborting: boolean;
-  onChange: (value: string) => void;
-  onSubmit: () => void;
-  onAbort: () => void;
-}): React.JSX.Element {
+function ExtensionDialog({ request }: { request: ExtensionDialogRequest }): React.JSX.Element {
+  const [value, setValue] = React.useState(request.method === "editor" ? request.prefill ?? "" : request.options?.[0] ?? "");
+  const respond = (response: ExtensionUiResponse) => vscode.postMessage({ type: "extensionUiResponse", id: request.id, response });
+  React.useEffect(() => {
+    const cancel = (event: KeyboardEvent) => {
+      if (event.key === "Escape") vscode.postMessage({ type: "extensionUiResponse", id: request.id, response: { kind: "cancelled" } });
+    };
+    window.addEventListener("keydown", cancel);
+    return () => window.removeEventListener("keydown", cancel);
+  }, [request.id]);
+  return (
+    <div className="dialog-backdrop" role="presentation">
+      <section className="extension-dialog" role="dialog" aria-modal="true" aria-labelledby="extension-dialog-title">
+        <h2 id="extension-dialog-title">{request.title}</h2>
+        {request.message && <p>{request.message}</p>}
+        {request.method === "select" && <select aria-label={request.title} value={value} onChange={(event) => setValue(event.target.value)}>{request.options?.map((option) => <option key={option} value={option}>{option}</option>)}</select>}
+        {request.method === "input" && <input autoFocus value={value} placeholder={request.placeholder} onChange={(event) => setValue(event.target.value)} />}
+        {request.method === "editor" && <textarea autoFocus rows={7} value={value} onChange={(event) => setValue(event.target.value)} />}
+        <div className="dialog-actions">
+          <button type="button" onClick={() => respond({ kind: "cancelled" })}>Cancel</button>
+          {request.method === "confirm" ? (
+            <><button type="button" onClick={() => respond({ kind: "confirmed", confirmed: false })}>No</button><button className="primary" type="button" autoFocus onClick={() => respond({ kind: "confirmed", confirmed: true })}>Yes</button></>
+          ) : (
+            <button className="primary" type="button" disabled={request.method === "select" && !value} onClick={() => respond({ kind: "value", value })}>Submit</button>
+          )}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function NotificationStack({ notifications }: { notifications: typeof initialExtensionUiState.notifications }): React.JSX.Element | null {
+  if (notifications.length === 0) return null;
+  return <div className="notification-stack" aria-live="polite">{notifications.map((item) => <div key={item.id} className={`extension-notification notify-${item.level}`}>{item.message}</div>)}</div>;
+}
+
+function ExtensionStatuses({ statuses }: { statuses: Record<string, string> }): React.JSX.Element | null {
+  const entries = Object.entries(statuses);
+  return entries.length === 0 ? null : <div className="extension-statuses">{entries.map(([key, text]) => <span key={key}>{text}</span>)}</div>;
+}
+
+function ExtensionWidgets({ widgets, placement }: { widgets: typeof initialExtensionUiState.widgets; placement: "aboveEditor" | "belowEditor" }): React.JSX.Element | null {
+  const entries = Object.entries(widgets).filter(([, widget]) => widget.placement === placement);
+  return entries.length === 0 ? null : <div className="extension-widgets">{entries.map(([key, widget]) => <div key={key}>{widget.lines.map((line, index) => <div key={index}>{line}</div>)}</div>)}</div>;
+}
+
+function Composer(props: { value: string; running: boolean; aborting: boolean; onChange: (value: string) => void; onSubmit: () => void; onAbort: () => void }): React.JSX.Element {
   return (
     <form className="composer" onSubmit={(event) => { event.preventDefault(); props.onSubmit(); }}>
-      <textarea
-        aria-label="Message Pi"
-        placeholder="Message Pi"
-        value={props.value}
-        disabled={props.running}
-        rows={3}
-        onChange={(event) => props.onChange(event.target.value)}
-        onKeyDown={(event) => {
-          if (event.key === "Enter" && !event.shiftKey) {
-            event.preventDefault();
-            props.onSubmit();
-          }
-        }}
-      />
-      {props.running ? (
-        <button className="send-button stop-button" type="button" onClick={props.onAbort} disabled={props.aborting} title="Stop" aria-label="Stop">
-          <Square size={14} fill="currentColor" />
-        </button>
-      ) : (
-        <button className="send-button" type="submit" disabled={!props.value.trim()} title="Send" aria-label="Send">
-          <Send size={15} />
-        </button>
-      )}
+      <textarea aria-label="Message Pi" placeholder="Message Pi" value={props.value} disabled={props.running} rows={3} onChange={(event) => props.onChange(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); props.onSubmit(); } }} />
+      {props.running ? <button className="send-button stop-button" type="button" onClick={props.onAbort} disabled={props.aborting} title="Stop" aria-label="Stop"><Square size={14} fill="currentColor" /></button> : <button className="send-button" type="submit" disabled={!props.value.trim()} title="Send" aria-label="Send"><Send size={15} /></button>}
     </form>
   );
 }
@@ -248,18 +256,8 @@ function Composer(props: {
 function ConnectionPanel({ connection }: { connection: ConnectionSnapshot }): React.JSX.Element {
   return (
     <section className="connection" aria-live="polite">
-      <div className={`status-mark status-${connection.phase}`}>
-        <span className="status-dot" />
-        <div>
-          <div className="status-label">{labelFor(connection.phase)}</div>
-          <div className="status-message">{messageFor(connection)}</div>
-        </div>
-      </div>
-      <div className="details" role="list" aria-label="Connection details">
-        <Detail icon={<TerminalSquare size={14} />} label="Executable" value={connection.executable} />
-        <Detail icon={<Activity size={14} />} label="Version" value={connection.version} />
-        <Detail icon={<Folder size={14} />} label="Workspace" value={connection.cwd} />
-      </div>
+      <div className={`status-mark status-${connection.phase}`}><span className="status-dot" /><div><div className="status-label">{labelFor(connection.phase)}</div><div className="status-message">{messageFor(connection)}</div></div></div>
+      <div className="details" role="list" aria-label="Connection details"><Detail icon={<TerminalSquare size={14} />} label="Executable" value={connection.executable} /><Detail icon={<Activity size={14} />} label="Version" value={connection.version} /><Detail icon={<Folder size={14} />} label="Workspace" value={connection.cwd} /></div>
     </section>
   );
 }
@@ -277,6 +275,10 @@ function messageFor(connection: ConnectionSnapshot): string {
   if (connection.phase === "ready") return connection.pid ? `Process ${connection.pid}` : "Connected";
   if (connection.phase === "starting") return "Probing executable and opening RPC";
   return "No active pi process";
+}
+
+function encodeModel(provider: string, id: string): string {
+  return JSON.stringify([provider, id]);
 }
 
 function formatValue(value: unknown): string {

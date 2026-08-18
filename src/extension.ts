@@ -28,6 +28,8 @@ export function activate(context: vscode.ExtensionContext): void {
       void context.workspaceState.update(ACTIVE_SESSION_KEY, { cwd: snapshot.cwd, path: snapshot.activePath });
     }
   });
+  const unsubscribeControls = runtime.subscribeControls((snapshot) => provider.updateControls(snapshot));
+  const unsubscribeExtensionUi = runtime.subscribeExtensionUi((event) => provider.updateExtensionUi(event));
 
   context.subscriptions.push(
     vscode.window.registerWebviewViewProvider(PiViewProvider.viewType, provider, {
@@ -40,6 +42,8 @@ export function activate(context: vscode.ExtensionContext): void {
     ),
     { dispose: unsubscribeChat },
     { dispose: unsubscribeSession },
+    { dispose: unsubscribeControls },
+    { dispose: unsubscribeExtensionUi },
     { dispose: () => void runtime.dispose() },
   );
 }

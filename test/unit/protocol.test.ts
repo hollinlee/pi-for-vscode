@@ -11,6 +11,11 @@ describe("isWebviewMessage", () => {
     { type: "newSession" },
     { type: "refreshSessions" },
     { type: "switchSession", path: "/tmp/session.jsonl" },
+    { type: "setModel", provider: "fixture", modelId: "model-a" },
+    { type: "setThinkingLevel", level: "high" },
+    { type: "extensionUiResponse", id: "dialog", response: { kind: "cancelled" } },
+    { type: "extensionUiResponse", id: "dialog", response: { kind: "value", value: "A" } },
+    { type: "extensionUiResponse", id: "dialog", response: { kind: "confirmed", confirmed: true } },
     { type: "abort" },
     { type: "prompt", text: "hello" },
   ])("accepts valid message $type", (message) => {
@@ -26,6 +31,11 @@ describe("isWebviewMessage", () => {
     { type: "prompt", text: "hello", extra: true },
     { type: "switchSession", path: "" },
     { type: "switchSession", path: "/tmp/session.jsonl", extra: true },
+    { type: "setModel", provider: "", modelId: "model-a" },
+    { type: "setThinkingLevel", level: "" },
+    { type: "extensionUiResponse", id: "dialog", response: { kind: "value", value: "A", extra: true } },
+    { type: "extensionUiResponse", id: "dialog", response: { kind: "confirmed", confirmed: "yes" } },
+    { type: "extensionUiResponse", id: "dialog", response: { kind: "unknown" } },
     { type: "abort", extra: true },
     { type: "unknown" },
   ])("rejects malformed message", (message) => {

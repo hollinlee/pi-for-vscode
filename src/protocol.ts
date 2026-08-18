@@ -76,6 +76,7 @@ export type WebviewMessage =
   | { type: "setModel"; provider: string; modelId: string }
   | { type: "setThinkingLevel"; level: string }
   | { type: "extensionUiResponse"; id: string; response: ExtensionUiResponse }
+  | { type: "openExternal"; url: string }
   | { type: "prompt"; text: string }
   | { type: "abort" };
 
@@ -101,6 +102,8 @@ export function isWebviewMessage(value: unknown): value is WebviewMessage {
       return hasOnlyKeys(value, ["type", "id", "response"])
         && isBoundedString(value.id, 200)
         && isExtensionUiResponse(value.response);
+    case "openExternal":
+      return hasOnlyKeys(value, ["type", "url"]) && typeof value.url === "string" && isSafeExternalUrl(value.url);
     case "prompt":
       return hasOnlyKeys(value, ["type", "text"])
         && typeof value.text === "string"
@@ -108,6 +111,16 @@ export function isWebviewMessage(value: unknown): value is WebviewMessage {
         && value.text.length <= 100_000;
     default:
       return false;
+  }
+}
+
+export function isSafeExternalUrl(value: string): boolean {
+  if (value.length === 0 || value.length > 4096) return false;
+  try {
+    const url = new URL(value);
+    return (url.protocol === "https:" || url.protocol === "http:") && !url.username && !url.password;
+  } catch {
+    return false;
   }
 }
 

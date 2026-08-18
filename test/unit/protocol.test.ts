@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isWebviewMessage } from "../../src/protocol.js";
+import { isSafeExternalUrl, isWebviewMessage } from "../../src/protocol.js";
 
 const LONG_PROMPT = "a".repeat(100_001);
 
@@ -16,6 +16,7 @@ describe("isWebviewMessage", () => {
     { type: "extensionUiResponse", id: "dialog", response: { kind: "cancelled" } },
     { type: "extensionUiResponse", id: "dialog", response: { kind: "value", value: "A" } },
     { type: "extensionUiResponse", id: "dialog", response: { kind: "confirmed", confirmed: true } },
+    { type: "openExternal", url: "https://example.com/path?q=1" },
     { type: "abort" },
     { type: "prompt", text: "hello" },
   ])("accepts valid message $type", (message) => {
@@ -36,9 +37,25 @@ describe("isWebviewMessage", () => {
     { type: "extensionUiResponse", id: "dialog", response: { kind: "value", value: "A", extra: true } },
     { type: "extensionUiResponse", id: "dialog", response: { kind: "confirmed", confirmed: "yes" } },
     { type: "extensionUiResponse", id: "dialog", response: { kind: "unknown" } },
+    { type: "openExternal", url: "javascript:alert(1)" },
+    { type: "openExternal", url: "https://user:pass@example.com" },
+    { type: "openExternal", url: "/relative" },
     { type: "abort", extra: true },
     { type: "unknown" },
   ])("rejects malformed message", (message) => {
     expect(isWebviewMessage(message)).toBe(false);
+  });
+});
+
+describe("isSafeExternalUrl", () => {
+  it("allows only credential-free HTTP(S) URLs", () => {
+    expect(isSafeExternalUrl("https://example.com/docs")).toBe(true);
+    expect(isSafeExternalUrl("http://localhost:3000")).toBe(true);
+    expect(isSafeExternalUrl("command:workbench.action.openSettings")).toBe(false);
+    expect(isSafeExternalUrl("data:text/html,hello")).toBe(false);
+    expect(isSafeExternalUrl("")).toBe(false);
+    expect(isSafeExternalUrl("x".repeat(4097))).toBe(false);
+    expect(isSafeExternalUrl("/relative")).toBe(false);
+    expect(isSafeExternalUrl("https://user:pass@example.com")).toBe(false);
   });
 });

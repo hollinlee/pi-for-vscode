@@ -4,6 +4,6 @@ export default defineConfig({
   test: {
     environment: "node",
     coverage: { reporter: ["text", "html"] },
-    exclude: ["test/fixtures/**", "node_modules/**", "dist/**"],
+    exclude: ["test/fixtures/**", "node_modules/**", "dist/**", ".vscode-test/**"],
   },
 });

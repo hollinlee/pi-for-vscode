@@ -28,6 +28,7 @@ import type {
   SessionSnapshot,
   WebviewMessage,
 } from "../protocol.js";
+import { isSafeExternalUrl } from "../protocol.js";
 import { initialExtensionUiState, reduceExtensionUi } from "./extension-ui-reducer.js";
 import "./styles.css";
 
@@ -182,7 +183,35 @@ function MessageView({ message, tools }: { message: ChatMessage; tools: ChatStat
   return (
     <article className="message assistant-message">
       {message.thinking && <details className="thinking-row"><summary><Brain size={13} /> Thinking</summary><div className="thinking-text">{message.thinking}</div></details>}
-      {message.text && <div className="markdown"><ReactMarkdown remarkPlugins={[remarkGfm]}>{message.text}</ReactMarkdown></div>}
+      {message.text && (
+        <div className="markdown">
+          <ReactMarkdown
+            remarkPlugins={[remarkGfm]}
+            components={{
+              a: ({ href, children, node, ...props }) => {
+                void node;
+                return href && isSafeExternalUrl(href)
+                  ? (
+                    <a
+                      {...props}
+                      href={href}
+                      onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        vscode.postMessage({ type: "openExternal", url: href });
+                      }}
+                    >
+                      {children}
+                    </a>
+                  )
+                  : <span {...props}>{children}</span>;
+              },
+            }}
+          >
+            {message.text}
+          </ReactMarkdown>
+        </div>
+      )}
       {message.toolIds.map((id) => tools[id] && <ToolRow key={id} tool={tools[id]} />)}
     </article>
   );

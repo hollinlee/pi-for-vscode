@@ -1,6 +1,7 @@
 import { EventEmitter } from "node:events";
 import { spawn, type ChildProcessWithoutNullStreams, type SpawnOptionsWithoutStdio } from "node:child_process";
 import { JsonlDecoder } from "./jsonl-decoder.js";
+import { isRecord } from "../utils/is-record.js";
 
 interface RpcResponse {
   id?: string;
@@ -35,6 +36,13 @@ export class RpcClient extends EventEmitter {
     this.#requestTimeoutMs = options.requestTimeoutMs ?? 10_000;
     this.#killTimeoutMs = options.killTimeoutMs ?? 1_000;
     process.stdout.on("data", (chunk: Buffer) => this.#consume(chunk));
+    process.stdout.once("end", () => {
+      try {
+        this.#decoder.end();
+      } catch (error) {
+        this.emit("protocolError", error);
+      }
+    });
     process.stderr.on("data", (chunk: Buffer) => this.emit("diagnostic", chunk.toString("utf8")));
     process.once("error", (error) => this.#close(error));
     process.once("exit", (code, signal) => {
@@ -108,6 +116,10 @@ export class RpcClient extends EventEmitter {
       this.emit("protocolError", new Error(`Invalid pi RPC JSON: ${String(error)}`));
       return;
     }
+    if (isRecord(message) && message.type === "response" && !isRpcResponse(message)) {
+      this.emit("protocolError", new Error("Invalid pi RPC response schema"));
+      return;
+    }
     if (isRpcResponse(message) && message.id && this.#pending.has(message.id)) {
       const pending = this.#pending.get(message.id)!;
       this.#pending.delete(message.id);
@@ -138,5 +150,10 @@ export class RpcClient extends EventEmitter {
 }
 
 function isRpcResponse(value: unknown): value is RpcResponse {
-  return typeof value === "object" && value !== null && "type" in value && value.type === "response";
+  return isRecord(value)
+    && value.type === "response"
+    && typeof value.command === "string"
+    && typeof value.success === "boolean"
+    && (value.id === undefined || typeof value.id === "string")
+    && (value.error === undefined || typeof value.error === "string");
 }

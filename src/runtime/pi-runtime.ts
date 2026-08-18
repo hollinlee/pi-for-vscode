@@ -341,8 +341,10 @@ export class PiRuntime extends EventEmitter {
 
   #fail(error: Error): void {
     const previous = this.#snapshot;
+    const client = this.#client;
     this.#client = undefined;
     this.#running = false;
+    void client?.dispose().catch(() => undefined);
     void this.cancelExtensionUi();
     this.#emitChat({ type: "error", message: error.message });
     this.#set({ ...previous, phase: "error", pid: undefined, message: error.message });

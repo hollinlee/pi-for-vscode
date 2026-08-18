@@ -1,0 +1,94 @@
+{
+  "name": "pi-for-vscode",
+  "displayName": "Pi for VS Code",
+  "description": "Use your installed pi coding agent from VS Code.",
+  "version": "0.0.1",
+  "publisher": "hollinlee",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.96.0"
+  },
+  "categories": ["Other", "Machine Learning"],
+  "extensionKind": ["workspace"],
+  "activationEvents": ["onView:pi.sidebar"],
+  "main": "./dist/extension.js",
+  "files": ["dist", "media", "package.json"],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": false,
+      "description": "Pi can execute tools and project extensions, so a trusted workspace is required."
+    }
+  },
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "pi-for-vscode",
+          "title": "Pi",
+          "icon": "media/pi.svg"
+        }
+      ]
+    },
+    "views": {
+      "pi-for-vscode": [
+        {
+          "id": "pi.sidebar",
+          "name": "Pi",
+          "type": "webview"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "pi.refreshConnection",
+        "title": "Pi: Refresh Connection",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "pi.openSettings",
+        "title": "Pi: Open Settings",
+        "icon": "$(settings-gear)"
+      }
+    ],
+    "configuration": {
+      "title": "Pi",
+      "properties": {
+        "pi.executablePath": {
+          "type": "string",
+          "default": "pi",
+          "scope": "machine-overridable",
+          "description": "Path or command used to launch pi in the current Extension Host."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "clean": "rimraf dist coverage",
+    "build": "npm run clean && node esbuild.mjs --production",
+    "watch": "node esbuild.mjs --watch",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:integration": "vitest run test/integration",
+    "package": "npm run build && vsce package --no-dependencies"
+  },
+  "dependencies": {
+    "lucide-react": "^0.468.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.17.0",
+    "@types/node": "^22.10.5",
+    "@types/react": "^19.0.3",
+    "@types/react-dom": "^19.0.2",
+    "@types/vscode": "^1.96.0",
+    "@vscode/vsce": "^3.2.1",
+    "esbuild": "^0.24.2",
+    "eslint": "^9.17.0",
+    "rimraf": "^6.0.1",
+    "typescript": "^5.7.2",
+    "typescript-eslint": "^8.19.1",
+    "vitest": "^2.1.8"
+  }
+}

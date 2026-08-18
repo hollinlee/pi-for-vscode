@@ -42,6 +42,16 @@ describe("reduceChat", () => {
     expect(state.messages[0]?.toolIds).toEqual(["t1"]);
   });
 
+  it("marks failed tools as error and preserves partial output", () => {
+    const tool = { id: "t1", name: "bash", status: "running" as const, args: {} };
+    let state = reduceChat(initialChatState, { type: "assistant_start", id: "a1" });
+    state = reduceChat(state, { type: "tool_start", messageId: "a1", tool });
+    state = reduceChat(state, { type: "tool_update", id: "t1", output: "partial" });
+    state = reduceChat(state, { type: "tool_end", id: "t1", isError: true });
+
+    expect(state.tools.t1).toMatchObject({ status: "error", output: "partial" });
+  });
+
   it("clears a prior error when returning to a non-error phase", () => {
     let state = reduceChat(initialChatState, { type: "error", message: "failed" });
     state = reduceChat(state, { type: "status", phase: "aborting" });

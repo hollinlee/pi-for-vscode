@@ -231,6 +231,7 @@ function labelFor(phase: ConnectionSnapshot["phase"]): string {
 
 function messageFor(connection: ConnectionSnapshot): string {
   if (connection.message) return connection.message;
+  if (connection.phase === "ready") return connection.pid ? `Process ${connection.pid}` : "Connected";
   if (connection.phase === "starting") return "Probing executable and opening RPC";
   return "No active pi process";
 }

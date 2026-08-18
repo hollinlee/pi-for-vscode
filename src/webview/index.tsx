@@ -7,6 +7,7 @@ import {
   CircleX,
   Folder,
   LoaderCircle,
+  Plus,
   RefreshCw,
   Send,
   Settings,
@@ -17,22 +18,25 @@ import {
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { initialChatState, type ChatMessage, type ChatState, type ToolCallView } from "../chat/chat-reducer.js";
-import type { ConnectionSnapshot, HostMessage, WebviewMessage } from "../protocol.js";
+import type { ConnectionSnapshot, HostMessage, SessionSnapshot, WebviewMessage } from "../protocol.js";
 import "./styles.css";
 
 declare function acquireVsCodeApi(): { postMessage(message: WebviewMessage): void };
 const vscode = acquireVsCodeApi();
 const initialConnection: ConnectionSnapshot = { phase: "disconnected" };
+const initialSession: SessionSnapshot = { sessions: [] };
 
 function App(): React.JSX.Element {
   const [connection, setConnection] = React.useState(initialConnection);
   const [chat, setChat] = React.useState<ChatState>(initialChatState);
+  const [session, setSession] = React.useState<SessionSnapshot>(initialSession);
   const [draft, setDraft] = React.useState("");
 
   React.useEffect(() => {
     const receive = (event: MessageEvent<HostMessage>) => {
       if (event.data?.type === "connection") setConnection(event.data.value);
       if (event.data?.type === "chat") setChat(event.data.value);
+      if (event.data?.type === "session") setSession(event.data.value);
     };
     window.addEventListener("message", receive);
     vscode.postMessage({ type: "ready" });
@@ -52,6 +56,7 @@ function App(): React.JSX.Element {
       <Toolbar connection={connection} />
       {connected ? (
         <>
+          <SessionBar session={session} disabled={running} />
           <MessageStream chat={chat} />
           <Composer
             value={draft}
@@ -98,6 +103,44 @@ function Toolbar({ connection }: { connection: ConnectionSnapshot }): React.JSX.
         </button>
       </div>
     </header>
+  );
+}
+
+function SessionBar({ session, disabled }: { session: SessionSnapshot; disabled: boolean }): React.JSX.Element {
+  const activeListed = session.activePath && session.sessions.some((item) => item.path === session.activePath);
+  return (
+    <div className="session-bar">
+      <select
+        aria-label="Active Pi session"
+        value={session.activePath ?? ""}
+        disabled={disabled}
+        onChange={(event) => event.target.value && vscode.postMessage({ type: "switchSession", path: event.target.value })}
+      >
+        {!session.activePath && <option value="">New session</option>}
+        {session.activePath && !activeListed && <option value={session.activePath}>Current session</option>}
+        {session.sessions.map((item) => (
+          <option key={item.path} value={item.path}>{item.name ?? item.firstMessage}</option>
+        ))}
+      </select>
+      <button
+        className="icon-button"
+        title="Refresh sessions"
+        aria-label="Refresh sessions"
+        disabled={disabled}
+        onClick={() => vscode.postMessage({ type: "refreshSessions" })}
+      >
+        <RefreshCw size={14} />
+      </button>
+      <button
+        className="icon-button"
+        title="New session"
+        aria-label="New session"
+        disabled={disabled}
+        onClick={() => vscode.postMessage({ type: "newSession" })}
+      >
+        <Plus size={15} />
+      </button>
+    </div>
   );
 }
 

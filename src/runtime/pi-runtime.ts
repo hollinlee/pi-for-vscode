@@ -3,24 +3,39 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import type { ChatEvent } from "../chat/chat-reducer.js";
 import { RpcEventNormalizer } from "../chat/rpc-event-normalizer.js";
-import type { ConnectionSnapshot } from "../protocol.js";
+import type { ConnectionSnapshot, SessionSnapshot } from "../protocol.js";
 import { RpcClient } from "../rpc/rpc-client.js";
+import { hydrateAgentMessages } from "../session/hydrate-messages.js";
+import { SessionStore } from "../session/session-store.js";
 
 const execFileAsync = promisify(execFile);
 export const MINIMUM_PI_VERSION = "0.84.2";
 
 type ChatListener = (event: ChatEvent) => void;
+type SessionListener = (snapshot: SessionSnapshot) => void;
 
 export class PiRuntime extends EventEmitter {
   readonly #normalizer = new RpcEventNormalizer();
   readonly #chatListeners = new Set<ChatListener>();
+  readonly #sessionListeners = new Set<SessionListener>();
+  readonly #sessionStore: SessionStore;
   #client: RpcClient | undefined;
   #snapshot: ConnectionSnapshot = { phase: "disconnected" };
+  #sessionSnapshot: SessionSnapshot = { sessions: [] };
   #userSequence = 0;
   #running = false;
 
+  constructor(sessionStore = new SessionStore()) {
+    super();
+    this.#sessionStore = sessionStore;
+  }
+
   get snapshot(): ConnectionSnapshot {
     return this.#snapshot;
+  }
+
+  get sessionSnapshot(): SessionSnapshot {
+    return this.#sessionSnapshot;
   }
 
   show(snapshot: ConnectionSnapshot): void {
@@ -32,11 +47,17 @@ export class PiRuntime extends EventEmitter {
     return () => this.#chatListeners.delete(listener);
   }
 
-  async connect(executable: string, cwd: string): Promise<void> {
+  subscribeSession(listener: SessionListener): () => void {
+    this.#sessionListeners.add(listener);
+    return () => this.#sessionListeners.delete(listener);
+  }
+
+  async connect(executable: string, cwd: string, sessionPath?: string): Promise<void> {
     await this.dispose();
     this.#normalizer.reset();
     this.#running = false;
     this.#emitChat({ type: "reset" });
+    this.#setSession({ cwd, sessions: [] });
     this.#set({ phase: "starting", executable, cwd });
     try {
       const version = await probePiVersion(executable, cwd);
@@ -44,14 +65,20 @@ export class PiRuntime extends EventEmitter {
         throw new Error(`pi ${version} is incompatible; ${MINIMUM_PI_VERSION} or newer is required`);
       }
 
-      const client = RpcClient.launch(executable, ["--mode", "rpc", "--approve"], { cwd });
+      const args = ["--mode", "rpc", "--approve"];
+      if (sessionPath) args.push("--session", sessionPath);
+      const client = RpcClient.launch(executable, args, { cwd });
       this.#client = client;
-      client.on("event", (value: unknown) => this.#handleRpcEvent(value));
-      client.on("protocolError", (error: Error) => this.#fail(error));
+      client.on("event", (value: unknown) => {
+        if (this.#client === client) this.#handleRpcEvent(value);
+      });
+      client.on("protocolError", (error: Error) => {
+        if (this.#client === client) this.#fail(error);
+      });
       client.on("exit", () => {
         if (this.#client === client) this.#fail(new Error("pi RPC process exited"));
       });
-      await client.request("get_state");
+      await this.#synchronizeSession(client, cwd);
       if (this.#client !== client) return;
       this.#set({ phase: "ready", executable, version, cwd, pid: client.pid });
     } catch (error) {
@@ -96,6 +123,32 @@ export class PiRuntime extends EventEmitter {
     }
   }
 
+  async newSession(): Promise<void> {
+    const client = this.#requireIdleClient();
+    const result = await client.request("new_session");
+    if (isRecord(result) && result.cancelled === true) return;
+    this.#normalizer.reset();
+    this.#emitChat({ type: "reset" });
+    await this.#synchronizeSession(client, this.#requireCwd());
+  }
+
+  async switchSession(sessionPath: string): Promise<void> {
+    const client = this.#requireIdleClient();
+    const session = this.#sessionSnapshot.sessions.find((item) => item.path === sessionPath);
+    if (!session || session.cwd !== this.#requireCwd()) throw new Error("Session is not available for this workspace");
+    const result = await client.request("switch_session", { sessionPath });
+    if (isRecord(result) && result.cancelled === true) return;
+    this.#normalizer.reset();
+    await this.#synchronizeSession(client, session.cwd);
+  }
+
+  async refreshSessions(): Promise<void> {
+    const cwd = this.#snapshot.cwd;
+    if (!cwd) return;
+    const sessions = await this.#sessionStore.list(cwd);
+    this.#setSession({ ...this.#sessionSnapshot, cwd, sessions });
+  }
+
   async dispose(): Promise<void> {
     const client = this.#client;
     this.#client = undefined;
@@ -106,9 +159,25 @@ export class PiRuntime extends EventEmitter {
 
   #handleRpcEvent(value: unknown): void {
     for (const event of this.#normalizer.normalize(value)) {
-      if (event.type === "status") this.#running = event.phase === "streaming" || event.phase === "aborting";
+      if (event.type === "status") {
+        this.#running = event.phase === "streaming" || event.phase === "aborting";
+        if (event.phase === "idle") void this.refreshSessions();
+      }
       this.#emitChat(event);
     }
+  }
+
+  async #synchronizeSession(client: RpcClient, cwd: string): Promise<void> {
+    const state = await client.request("get_state");
+    const messageData = await client.request("get_messages");
+    const sessions = await this.#sessionStore.list(cwd);
+    if (this.#client !== client) return;
+
+    const activeId = isRecord(state) && typeof state.sessionId === "string" ? state.sessionId : undefined;
+    const activePath = isRecord(state) && typeof state.sessionFile === "string" ? state.sessionFile : undefined;
+    const messages = isRecord(messageData) ? messageData.messages : undefined;
+    this.#emitChat({ type: "hydrate", state: hydrateAgentMessages(messages) });
+    this.#setSession({ cwd, activeId, activePath, sessions });
   }
 
   #requireClient(): RpcClient {
@@ -116,8 +185,24 @@ export class PiRuntime extends EventEmitter {
     return this.#client;
   }
 
+  #requireIdleClient(): RpcClient {
+    const client = this.#requireClient();
+    if (this.#running) throw new Error("Wait for Pi to finish before changing sessions");
+    return client;
+  }
+
+  #requireCwd(): string {
+    if (!this.#snapshot.cwd) throw new Error("Pi workspace is unavailable");
+    return this.#snapshot.cwd;
+  }
+
   #emitChat(event: ChatEvent): void {
     for (const listener of this.#chatListeners) listener(event);
+  }
+
+  #setSession(snapshot: SessionSnapshot): void {
+    this.#sessionSnapshot = snapshot;
+    for (const listener of this.#sessionListeners) listener(snapshot);
   }
 
   #fail(error: Error): void {
@@ -163,4 +248,8 @@ export function compareVersions(left: string, right: string): number {
 
 function toActionableMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
 }

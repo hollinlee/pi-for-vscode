@@ -25,6 +25,7 @@ export interface ChatState {
 
 export type ChatEvent =
   | { type: "reset" }
+  | { type: "hydrate"; state: ChatState }
   | { type: "status"; phase: ChatPhase }
   | { type: "user"; id: string; text: string }
   | { type: "assistant_start"; id: string }
@@ -46,6 +47,8 @@ export function reduceChat(state: ChatState, event: ChatEvent): ChatState {
   switch (event.type) {
     case "reset":
       return initialChatState;
+    case "hydrate":
+      return event.state;
     case "status":
       return { ...state, phase: event.phase, error: event.phase === "error" ? state.error : undefined };
     case "user":

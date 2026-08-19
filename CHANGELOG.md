@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.5
+
+- Resolve environment-backed provider credentials from the user's interactive login shell when the VS Code Extension Host does not inherit them.
+- Import only credential variables referenced by `~/.pi/agent/models.json`; existing Extension Host values remain authoritative.
+
 ## 0.0.4
 
 - Add a Primary Activity Bar launcher that restores Explorer and focuses Pi in the Secondary Side Bar.

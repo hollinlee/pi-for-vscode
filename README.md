@@ -6,6 +6,7 @@ Use the pi coding agent installed in the current VS Code Extension Host through 
 
 - VS Code 1.96 or newer.
 - pi 0.84.2 or newer available on the Extension Host `PATH`. Linux/WSL installs under `~/.local/share/pi-node/current/bin/pi` are detected automatically; other locations can be configured with `pi.executablePath`.
+- Provider credentials configured as environment references in `~/.pi/agent/models.json`. When VS Code does not inherit a referenced variable, the extension resolves it from the user's interactive login shell and passes it only to the pi child process.
 - A trusted VS Code workspace.
 
 For WSL, open the project with **Remote - WSL** (`WSL: Reopen Folder in WSL`). Confirm the lower-left remote indicator says `WSL: <distro>`. The extension and pi then run in the same WSL environment. A normal Windows window cannot call a pi installation inside WSL.
@@ -32,7 +33,7 @@ The extension restores the active pi session for the workspace after VS Code rel
 
 A trusted VS Code workspace is launched with `pi --approve`. This allows pi to load project settings, extensions, packages, skills, and other project resources. Project pi extensions execute with the current user's permissions.
 
-The extension does not read, copy, log, or transmit pi credentials. Tool execution keeps pi's existing behavior; no additional permission layer is added.
+The extension does not read, copy, log, or transmit pi credentials outside the pi runtime. For custom providers that reference environment variables, it resolves only the named credentials from the user's login shell and passes them directly to the pi child process. Tool execution keeps pi's existing behavior; no additional permission layer is added.
 
 Markdown HTML is not rendered. External links are restricted to credential-free HTTP(S) URLs and opened through VS Code. Webview messages and RPC responses are validated before use.
 

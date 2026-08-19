@@ -12,6 +12,7 @@ import type {
   SessionSnapshot,
 } from "../protocol.js";
 import { normalizeExtensionUiEvent } from "../rpc/extension-ui.js";
+import { resolvePiEnvironment } from "./pi-environment.js";
 import { RpcClient } from "../rpc/rpc-client.js";
 import { hydrateAgentMessages } from "../session/hydrate-messages.js";
 import { SessionStore } from "../session/session-store.js";
@@ -96,14 +97,15 @@ export class PiRuntime extends EventEmitter {
     this.#setControls({ models: [], thinkingLevel: "off", thinkingLevels: ["off"] });
     this.#set({ phase: "starting", executable, cwd });
     try {
-      const version = await probePiVersion(executable, cwd);
+      const environment = await resolvePiEnvironment();
+      const version = await probePiVersion(executable, cwd, environment);
       if (compareVersions(version, MINIMUM_PI_VERSION) < 0) {
         throw new Error(`pi ${version} is incompatible; ${MINIMUM_PI_VERSION} or newer is required`);
       }
 
       const args = ["--mode", "rpc", "--approve"];
       if (sessionPath) args.push("--session", sessionPath);
-      const client = RpcClient.launch(executable, args, { cwd });
+      const client = RpcClient.launch(executable, args, { cwd, env: environment });
       this.#client = client;
       client.on("event", (value: unknown) => {
         if (this.#client === client) this.#handleRpcEvent(value);
@@ -356,10 +358,11 @@ export class PiRuntime extends EventEmitter {
   }
 }
 
-export async function probePiVersion(executable: string, cwd: string): Promise<string> {
+export async function probePiVersion(executable: string, cwd: string, env?: NodeJS.ProcessEnv): Promise<string> {
   try {
     const { stdout } = await execFileAsync(executable, ["--version"], {
       cwd,
+      env,
       timeout: 5_000,
       maxBuffer: 64 * 1024,
     });

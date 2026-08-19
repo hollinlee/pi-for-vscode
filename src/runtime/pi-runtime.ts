@@ -10,6 +10,7 @@ import type {
   ExtensionUiResponse,
   ModelSummary,
   SessionSnapshot,
+  SlashCommandSummary,
 } from "../protocol.js";
 import { normalizeExtensionUiEvent } from "../rpc/extension-ui.js";
 import { resolvePiEnvironment } from "./pi-environment.js";
@@ -43,7 +44,7 @@ export class PiRuntime extends EventEmitter {
   #client: RpcClient | undefined;
   #snapshot: ConnectionSnapshot = { phase: "disconnected" };
   #sessionSnapshot: SessionSnapshot = { sessions: [] };
-  #controlsSnapshot: ControlsSnapshot = { models: [], thinkingLevel: "off", thinkingLevels: ["off"] };
+  #controlsSnapshot: ControlsSnapshot = { models: [], thinkingLevel: "off", thinkingLevels: ["off"], commands: [] };
   #userSequence = 0;
   #running = false;
 
@@ -94,7 +95,7 @@ export class PiRuntime extends EventEmitter {
     this.#running = false;
     this.#emitChat({ type: "reset" });
     this.#setSession({ cwd, sessions: [] });
-    this.#setControls({ models: [], thinkingLevel: "off", thinkingLevels: ["off"] });
+    this.#setControls({ models: [], thinkingLevel: "off", thinkingLevels: ["off"], commands: [] });
     this.#set({ phase: "starting", executable, cwd });
     try {
       const environment = await resolvePiEnvironment();
@@ -282,10 +283,11 @@ export class PiRuntime extends EventEmitter {
   }
 
   async #synchronizeControls(client: RpcClient, knownState?: unknown): Promise<void> {
-    const [state, modelData, thinkingData] = await Promise.all([
+    const [state, modelData, thinkingData, commandData] = await Promise.all([
       knownState === undefined ? client.request("get_state") : Promise.resolve(knownState),
       client.request("get_available_models"),
       client.request("get_available_thinking_levels"),
+      client.request("get_commands"),
     ]);
     if (this.#client !== client) return;
     const model = isRecord(state) ? parseModel(state.model) : undefined;
@@ -296,7 +298,10 @@ export class PiRuntime extends EventEmitter {
     const thinkingLevels = isRecord(thinkingData) && Array.isArray(thinkingData.levels)
       ? thinkingData.levels.filter((level): level is string => typeof level === "string")
       : ["off"];
-    this.#setControls({ model, models, thinkingLevel, thinkingLevels });
+    const commands = isRecord(commandData) && Array.isArray(commandData.commands)
+      ? commandData.commands.map(parseSlashCommand).filter((item): item is SlashCommandSummary => item !== undefined)
+      : [];
+    this.#setControls({ model, models, thinkingLevel, thinkingLevels, commands });
   }
 
   #requireClient(): RpcClient {
@@ -384,6 +389,19 @@ export function compareVersions(left: string, right: string): number {
     if (difference !== 0) return Math.sign(difference);
   }
   return 0;
+}
+
+function parseSlashCommand(value: unknown): SlashCommandSummary | undefined {
+  if (!isRecord(value)
+    || typeof value.name !== "string"
+    || value.name.length === 0
+    || value.name.length > 200
+    || (value.source !== "extension" && value.source !== "prompt" && value.source !== "skill")) return undefined;
+  const description = typeof value.description === "string" ? value.description.slice(0, 1_000) : undefined;
+  const location = value.location === "user" || value.location === "project" || value.location === "path"
+    ? value.location
+    : undefined;
+  return { name: value.name, description, source: value.source, location };
 }
 
 function parseModel(value: unknown): ModelSummary | undefined {

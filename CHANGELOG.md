@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.7
+
+- Load extension, prompt-template, and skill slash commands from the active pi RPC session.
+- Show filtered command completion above the composer with descriptions, source labels, and keyboard navigation.
+
 ## 0.0.6
 
 - Show the active pi working directory directly above the message composer.

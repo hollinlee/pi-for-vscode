@@ -17,6 +17,7 @@ For WSL, open the project with **Remote - WSL** (`WSL: Reopen Folder in WSL`). C
 - Pi-owned sessions shared with terminal pi.
 - Active pi working directory above the composer, with model and thinking-level controls below it.
 - RPC-compatible extension dialogs, notifications, status, widgets, title, and editor prefill.
+- Slash command completion for active extension commands, prompt templates, and skills.
 - Explicit connection, compatibility, process, and protocol error states.
 
 ## Usage

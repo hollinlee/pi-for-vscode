@@ -365,6 +365,61 @@ button, textarea { font: inherit; }
   border-radius: 6px;
   background: var(--vscode-input-background);
 }
+.slash-menu {
+  position: absolute;
+  z-index: 15;
+  right: -1px;
+  bottom: calc(100% + 5px);
+  left: -1px;
+  max-height: min(320px, 50vh);
+  overflow-y: auto;
+  border: 1px solid var(--vscode-widget-border, var(--vscode-panel-border));
+  border-radius: 5px;
+  padding: 3px;
+  background: var(--vscode-editorSuggestWidget-background, var(--vscode-sideBar-background));
+  box-shadow: 0 4px 14px var(--vscode-widget-shadow);
+}
+.slash-menu button {
+  width: 100%;
+  min-height: 38px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 1px 8px;
+  border: 0;
+  border-radius: 3px;
+  padding: 5px 7px;
+  color: var(--vscode-editorSuggestWidget-foreground, var(--vscode-foreground));
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+.slash-menu button:hover,
+.slash-menu button.selected {
+  color: var(--vscode-editorSuggestWidget-selectedForeground, var(--vscode-list-activeSelectionForeground));
+  background: var(--vscode-editorSuggestWidget-selectedBackground, var(--vscode-list-activeSelectionBackground));
+}
+.slash-name {
+  min-width: 0;
+  overflow: hidden;
+  font-family: var(--vscode-editor-font-family);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.slash-source {
+  color: var(--vscode-descriptionForeground);
+  font-size: 9px;
+  text-transform: uppercase;
+}
+.slash-description {
+  grid-column: 1 / -1;
+  overflow: hidden;
+  color: var(--vscode-descriptionForeground);
+  font-size: 10px;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .composer textarea {
   width: 100%;
   min-height: 70px;

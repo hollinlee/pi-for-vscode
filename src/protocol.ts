@@ -26,11 +26,19 @@ export interface ModelSummary {
   name: string;
 }
 
+export interface SlashCommandSummary {
+  name: string;
+  description?: string;
+  source: "extension" | "prompt" | "skill";
+  location?: "user" | "project" | "path";
+}
+
 export interface ControlsSnapshot {
   model?: ModelSummary;
   models: ModelSummary[];
   thinkingLevel: string;
   thinkingLevels: string[];
+  commands: SlashCommandSummary[];
 }
 
 export interface ExtensionDialogRequest {

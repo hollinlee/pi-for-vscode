@@ -26,6 +26,7 @@ import type {
   ExtensionUiResponse,
   HostMessage,
   SessionSnapshot,
+  SlashCommandSummary,
   WebviewMessage,
 } from "../protocol.js";
 import { isSafeExternalUrl } from "../protocol.js";
@@ -35,13 +36,14 @@ import {
   notificationTimeout,
   reduceExtensionUi,
 } from "./extension-ui-reducer.js";
+import { completeSlashCommand, filterSlashCommands } from "./slash-commands.js";
 import "./styles.css";
 
 declare function acquireVsCodeApi(): { postMessage(message: WebviewMessage): void };
 const vscode = acquireVsCodeApi();
 const initialConnection: ConnectionSnapshot = { phase: "disconnected" };
 const initialSession: SessionSnapshot = { sessions: [] };
-const initialControls: ControlsSnapshot = { models: [], thinkingLevel: "off", thinkingLevels: ["off"] };
+const initialControls: ControlsSnapshot = { models: [], thinkingLevel: "off", thinkingLevels: ["off"], commands: [] };
 
 function App(): React.JSX.Element {
   const [connection, setConnection] = React.useState(initialConnection);
@@ -93,6 +95,7 @@ function App(): React.JSX.Element {
             <WorkspaceContext cwd={connection.cwd} />
             <Composer
               value={draft}
+              commands={controls.commands}
               running={running}
               aborting={chat.phase === "aborting"}
               onChange={setDraft}
@@ -336,10 +339,95 @@ function ExtensionWidgets({ widgets, placement }: { widgets: typeof initialExten
   return entries.length === 0 ? null : <div className="extension-widgets">{entries.map(([key, widget]) => <div key={key}>{widget.lines.map((line, index) => <div key={index}>{line}</div>)}</div>)}</div>;
 }
 
-function Composer(props: { value: string; running: boolean; aborting: boolean; onChange: (value: string) => void; onSubmit: () => void; onAbort: () => void }): React.JSX.Element {
+function Composer(props: {
+  value: string;
+  commands: SlashCommandSummary[];
+  running: boolean;
+  aborting: boolean;
+  onChange: (value: string) => void;
+  onSubmit: () => void;
+  onAbort: () => void;
+}): React.JSX.Element {
+  const [selectedIndex, setSelectedIndex] = React.useState(0);
+  const [dismissedDraft, setDismissedDraft] = React.useState<string>();
+  const suggestions = dismissedDraft === props.value ? [] : filterSlashCommands(props.commands, props.value);
+  React.useEffect(() => { setSelectedIndex(0); }, [props.value]);
+
+  const complete = (command: SlashCommandSummary) => {
+    props.onChange(completeSlashCommand(command));
+    setDismissedDraft(undefined);
+  };
+
   return (
-    <form className="composer" onSubmit={(event) => { event.preventDefault(); props.onSubmit(); }}>
-      <textarea aria-label="Message Pi" placeholder="Message Pi" value={props.value} disabled={props.running} rows={3} onChange={(event) => props.onChange(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); props.onSubmit(); } }} />
+    <form className="composer" onSubmit={(event) => {
+      event.preventDefault();
+      const selected = suggestions[selectedIndex];
+      if (selected) complete(selected);
+      else props.onSubmit();
+    }}>
+      {suggestions.length > 0 && (
+        <div className="slash-menu" role="listbox" aria-label="Pi commands">
+          {suggestions.map((command, index) => (
+            <button
+              key={`${command.source}:${command.name}`}
+              type="button"
+              role="option"
+              aria-selected={index === selectedIndex}
+              className={index === selectedIndex ? "selected" : ""}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => complete(command)}
+            >
+              <span className="slash-name">/{command.name}</span>
+              <span className="slash-source">{command.source}</span>
+              {command.description && <span className="slash-description">{command.description}</span>}
+            </button>
+          ))}
+        </div>
+      )}
+      <textarea
+        aria-label="Message Pi"
+        aria-autocomplete="list"
+        aria-expanded={suggestions.length > 0}
+        placeholder="Message Pi"
+        value={props.value}
+        disabled={props.running}
+        rows={3}
+        onChange={(event) => {
+          setDismissedDraft(undefined);
+          props.onChange(event.target.value);
+        }}
+        onKeyDown={(event) => {
+          if (suggestions.length > 0) {
+            if (event.key === "ArrowDown") {
+              event.preventDefault();
+              setSelectedIndex((index) => (index + 1) % suggestions.length);
+              return;
+            }
+            if (event.key === "ArrowUp") {
+              event.preventDefault();
+              setSelectedIndex((index) => (index - 1 + suggestions.length) % suggestions.length);
+              return;
+            }
+            if (event.key === "Tab") {
+              event.preventDefault();
+              const selected = suggestions[selectedIndex];
+              if (selected) complete(selected);
+              return;
+            }
+            if (event.key === "Escape") {
+              event.preventDefault();
+              setDismissedDraft(props.value);
+              return;
+            }
+          }
+          if (event.key === "Enter" && !event.shiftKey) {
+            event.preventDefault();
+            const selected = suggestions[selectedIndex];
+            if (selected) complete(selected);
+            else props.onSubmit();
+          }
+        }}
+      />
       {props.running ? <button className="send-button stop-button" type="button" onClick={props.onAbort} disabled={props.aborting} title="Stop" aria-label="Stop"><Square size={14} fill="currentColor" /></button> : <button className="send-button" type="submit" disabled={!props.value.trim()} title="Send" aria-label="Send"><Send size={15} /></button>}
     </form>
   );

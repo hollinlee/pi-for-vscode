@@ -16,6 +16,11 @@ describe("PiRuntime controls and extension UI", () => {
       model: { provider: "fixture", id: "model-a" },
       thinkingLevel: "medium",
       thinkingLevels: ["off", "low", "medium", "high"],
+      commands: [
+        { name: "grill", description: "Align intent before implementation", source: "extension" },
+        { name: "plan", description: "Create an implementation plan", source: "prompt", location: "user" },
+        { name: "skill:remote-devices", description: "Operate remote devices", source: "skill", location: "user" },
+      ],
     });
 
     await expect(runtime.setModel("fixture", "missing")).rejects.toThrow("not available");

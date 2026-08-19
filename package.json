@@ -2,7 +2,7 @@
   "name": "pi-for-vscode",
   "displayName": "Pi for VS Code",
   "description": "Use your installed pi coding agent from VS Code.",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "publisher": "hollinlee",
   "license": "MIT",
   "repository": {
@@ -14,7 +14,7 @@
   },
   "homepage": "https://github.com/hollinlee/pi-for-vscode#readme",
   "engines": {
-    "vscode": "^1.96.0"
+    "vscode": "^1.106.0"
   },
   "categories": [
     "Other",
@@ -43,7 +43,7 @@
   },
   "contributes": {
     "viewsContainers": {
-      "activitybar": [
+      "secondarySidebar": [
         {
           "id": "pi-for-vscode",
           "title": "Pi",

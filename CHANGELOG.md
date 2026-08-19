@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.3
+
+- Place the Pi view in VS Code's Secondary Side Bar so Explorer and other Primary Side Bar views remain visible on the left.
+
 ## 0.0.2
 
 - Detect pi-node installations automatically when the Extension Host PATH omits pi.

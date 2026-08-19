@@ -1,6 +1,6 @@
 # Pi for VS Code
 
-Use the pi coding agent installed in the current VS Code Extension Host through a native Activity Bar chat view.
+Use the pi coding agent installed in the current VS Code Extension Host through a native chat view in the Secondary Side Bar. Explorer and other Primary Side Bar views remain available on the left.
 
 ## Requirements
 
@@ -21,9 +21,10 @@ For WSL, open the project with **Remote - WSL** (`WSL: Reopen Folder in WSL`). C
 ## Usage
 
 1. Open a trusted workspace in local Linux or Remote WSL.
-2. Select the Pi icon in the Activity Bar.
-3. Use the session, model, and thinking controls above the message stream.
-4. Enter a prompt. Use the stop button to abort the active run.
+2. Show the Secondary Side Bar with **View: Toggle Secondary Side Bar** if it is hidden.
+3. Select the Pi view on the right.
+4. Use the session, model, and thinking controls above the message stream.
+5. Enter a prompt. Use the stop button to abort the active run.
 
 The extension restores the active pi session for the workspace after VS Code reloads.
 

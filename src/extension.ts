@@ -2,6 +2,7 @@ import { access } from "node:fs/promises";
 import path from "node:path";
 import * as vscode from "vscode";
 import { PiRuntime } from "./runtime/pi-runtime.js";
+import { resolvePiExecutable } from "./runtime/pi-executable.js";
 import { PiViewProvider } from "./view/pi-view-provider.js";
 
 const ACTIVE_SESSION_KEY = "pi.activeSession";
@@ -64,7 +65,13 @@ async function connect(
     runtime.show({ phase: "error", message: "Open a workspace folder before starting pi." });
     return;
   }
-  const executable = getExecutable();
+  let executable: string;
+  try {
+    executable = await getExecutable();
+  } catch (error) {
+    runtime.show({ phase: "error", message: error instanceof Error ? error.message : String(error) });
+    return;
+  }
   const restorablePath = sessionPath && await pathExists(sessionPath) ? sessionPath : undefined;
   if (sessionPath && !restorablePath) await context.workspaceState.update(ACTIVE_SESSION_KEY, undefined);
   await runtime.connect(executable, folder.uri.fsPath, restorablePath);
@@ -90,11 +97,19 @@ async function createSession(runtime: PiRuntime): Promise<void> {
     await runtime.newSession();
     return;
   }
-  await runtime.connect(getExecutable(), targetCwd);
+  let executable: string;
+  try {
+    executable = await getExecutable();
+  } catch (error) {
+    runtime.show({ phase: "error", message: error instanceof Error ? error.message : String(error) });
+    return;
+  }
+  await runtime.connect(executable, targetCwd);
 }
 
-function getExecutable(): string {
-  return vscode.workspace.getConfiguration("pi").get<string>("executablePath", "pi").trim() || "pi";
+async function getExecutable(): Promise<string> {
+  const configured = vscode.workspace.getConfiguration("pi").get<string>("executablePath", "pi");
+  return resolvePiExecutable(configured);
 }
 
 async function pathExists(filePath: string): Promise<boolean> {

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.2
+
+- Detect pi-node installations automatically when the Extension Host PATH omits pi.
+- Report whether a missing executable comes from Windows, Linux, or WSL and guide Windows users to reopen the workspace in WSL.
+
 ## 0.0.1
 
 - Initial VS Code Activity Bar chat for installed pi RPC runtimes.

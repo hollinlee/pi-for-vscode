@@ -5,10 +5,10 @@ Use the pi coding agent installed in the current VS Code Extension Host through 
 ## Requirements
 
 - VS Code 1.96 or newer.
-- pi 0.84.2 or newer available on `PATH`, or configured with `pi.executablePath`.
+- pi 0.84.2 or newer available on the Extension Host `PATH`. Linux/WSL installs under `~/.local/share/pi-node/current/bin/pi` are detected automatically; other locations can be configured with `pi.executablePath`.
 - A trusted VS Code workspace.
 
-For WSL, open the project with **Remote - WSL**. The extension and pi then run in the same WSL environment. A normal Windows window cannot call a pi installation inside WSL.
+For WSL, open the project with **Remote - WSL** (`WSL: Reopen Folder in WSL`). Confirm the lower-left remote indicator says `WSL: <distro>`. The extension and pi then run in the same WSL environment. A normal Windows window cannot call a pi installation inside WSL.
 
 ## Features
 

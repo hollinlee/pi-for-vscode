@@ -15,7 +15,7 @@ For WSL, open the project with **Remote - WSL** (`WSL: Reopen Folder in WSL`). C
 
 - Streaming Markdown, thinking state, and compact tool execution details.
 - Pi-owned sessions shared with terminal pi.
-- Model and thinking-level controls.
+- Active pi working directory above the composer, with model and thinking-level controls below it.
 - RPC-compatible extension dialogs, notifications, status, widgets, title, and editor prefill.
 - Explicit connection, compatibility, process, and protocol error states.
 

@@ -11,7 +11,6 @@ import {
   RefreshCw,
   Send,
   Settings,
-  SlidersHorizontal,
   Square,
   TerminalSquare,
   Wrench,
@@ -87,11 +86,11 @@ function App(): React.JSX.Element {
       {connected ? (
         <>
           <SessionBar session={session} disabled={running} />
-          <ControlsBar controls={controls} disabled={running} />
           <MessageStream chat={chat} />
           <div className="bottom-area">
             <ExtensionWidgets widgets={extensionUi.widgets} placement="aboveEditor" />
             <ExtensionStatuses statuses={extensionUi.statuses} />
+            <WorkspaceContext cwd={connection.cwd} />
             <Composer
               value={draft}
               running={running}
@@ -100,6 +99,7 @@ function App(): React.JSX.Element {
               onSubmit={submit}
               onAbort={() => vscode.postMessage({ type: "abort" })}
             />
+            <ControlsBar controls={controls} disabled={running} />
             <ExtensionWidgets widgets={extensionUi.widgets} placement="belowEditor" />
           </div>
           <NotificationStack notifications={extensionUi.notifications} onDismiss={dismissNotification} />
@@ -148,28 +148,44 @@ function SessionBar({ session, disabled }: { session: SessionSnapshot; disabled:
   );
 }
 
+function WorkspaceContext({ cwd }: { cwd?: string }): React.JSX.Element {
+  return (
+    <div className="workspace-context" title={cwd ?? "Workspace unavailable"}>
+      <Folder size={13} aria-hidden="true" />
+      <span className="context-label">CWD</span>
+      <span className="context-value">{cwd ?? "Unavailable"}</span>
+    </div>
+  );
+}
+
 function ControlsBar({ controls, disabled }: { controls: ControlsSnapshot; disabled: boolean }): React.JSX.Element {
   const modelValue = controls.model ? encodeModel(controls.model.provider, controls.model.id) : "";
   const modelListed = controls.model && controls.models.some((model) => model.provider === controls.model?.provider && model.id === controls.model.id);
   return (
     <div className="controls-bar">
-      <SlidersHorizontal size={13} aria-hidden="true" />
-      <select
-        aria-label="Pi model"
-        value={modelValue}
-        disabled={disabled || controls.models.length === 0}
-        onChange={(event) => {
-          const selected = controls.models.find((model) => encodeModel(model.provider, model.id) === event.target.value);
-          if (selected) vscode.postMessage({ type: "setModel", provider: selected.provider, modelId: selected.id });
-        }}
-      >
-        {!controls.model && <option value="">No model</option>}
-        {controls.model && !modelListed && <option value={modelValue}>{controls.model.name}</option>}
-        {controls.models.map((model) => <option key={encodeModel(model.provider, model.id)} value={encodeModel(model.provider, model.id)}>{model.provider} / {model.name}</option>)}
-      </select>
-      <select aria-label="Pi thinking level" value={controls.thinkingLevel} disabled={disabled} onChange={(event) => vscode.postMessage({ type: "setThinkingLevel", level: event.target.value })}>
-        {controls.thinkingLevels.map((level) => <option key={level} value={level}>{level}</option>)}
-      </select>
+      <div className="control-field">
+        <label htmlFor="pi-model">Model</label>
+        <select
+          id="pi-model"
+          aria-label="Pi model"
+          value={modelValue}
+          disabled={disabled || controls.models.length === 0}
+          onChange={(event) => {
+            const selected = controls.models.find((model) => encodeModel(model.provider, model.id) === event.target.value);
+            if (selected) vscode.postMessage({ type: "setModel", provider: selected.provider, modelId: selected.id });
+          }}
+        >
+          {!controls.model && <option value="">No model</option>}
+          {controls.model && !modelListed && <option value={modelValue}>{controls.model.name}</option>}
+          {controls.models.map((model) => <option key={encodeModel(model.provider, model.id)} value={encodeModel(model.provider, model.id)}>{model.provider} / {model.name}</option>)}
+        </select>
+      </div>
+      <div className="control-field thinking-field">
+        <label htmlFor="pi-thinking">Thinking</label>
+        <select id="pi-thinking" aria-label="Pi thinking level" value={controls.thinkingLevel} disabled={disabled} onChange={(event) => vscode.postMessage({ type: "setThinkingLevel", level: event.target.value })}>
+          {controls.thinkingLevels.map((level) => <option key={level} value={level}>{level}</option>)}
+        </select>
+      </div>
     </div>
   );
 }

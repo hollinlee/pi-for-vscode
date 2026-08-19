@@ -21,7 +21,7 @@ button, textarea { font: inherit; }
   height: 100vh;
   min-height: 360px;
   display: grid;
-  grid-template-rows: 42px 38px 38px minmax(0, 1fr) auto;
+  grid-template-rows: 42px 38px minmax(0, 1fr) auto;
   padding-bottom: 10px;
 }
 
@@ -79,17 +79,27 @@ button, textarea { font: inherit; }
 .controls-bar {
   min-width: 0;
   display: grid;
-  grid-template-columns: 20px minmax(0, 1fr) minmax(64px, .45fr);
-  align-items: center;
-  gap: 4px;
-  border-bottom: 1px solid var(--vscode-panel-border);
+  grid-template-columns: minmax(0, 1fr) minmax(78px, .42fr);
+  align-items: end;
+  gap: 6px;
+  padding-top: 2px;
+}
+.control-field { min-width: 0; display: grid; gap: 2px; }
+.control-field label {
+  overflow: hidden;
   color: var(--vscode-descriptionForeground);
+  font-size: 9px;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
 }
 .controls-bar select {
   min-width: 0;
   width: 100%;
   height: 28px;
-  border: 0;
+  border: 1px solid var(--vscode-dropdown-border, transparent);
+  border-radius: 3px;
   padding: 0 20px 0 5px;
   color: var(--vscode-dropdown-foreground);
   background: var(--vscode-dropdown-background);
@@ -218,6 +228,24 @@ button, textarea { font: inherit; }
 .chat-error { margin: 8px 0; padding-left: 9px; border-left: 2px solid var(--vscode-testing-iconFailed); color: var(--vscode-errorForeground); line-height: 1.45; }
 
 .bottom-area { display: grid; gap: 5px; }
+.workspace-context {
+  min-width: 0;
+  min-height: 22px;
+  display: grid;
+  grid-template-columns: 14px auto minmax(0, 1fr);
+  align-items: center;
+  gap: 5px;
+  color: var(--vscode-descriptionForeground);
+  font-size: 10px;
+}
+.context-label { font-weight: 600; }
+.context-value {
+  overflow: hidden;
+  color: var(--vscode-foreground);
+  font-family: var(--vscode-editor-font-family);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .extension-statuses {
   min-width: 0;
   display: flex;

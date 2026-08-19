@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.6
+
+- Show the active pi working directory directly above the message composer.
+- Move model and thinking-level controls directly below the composer so execution context stays visible while prompting.
+
 ## 0.0.5
 
 - Resolve environment-backed provider credentials from the user's interactive login shell when the VS Code Extension Host does not inherit them.

@@ -2,7 +2,7 @@
   "name": "pi-for-vscode",
   "displayName": "Pi for VS Code",
   "description": "Use your installed pi coding agent from VS Code.",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "publisher": "hollinlee",
   "license": "MIT",
   "repository": {
@@ -24,7 +24,8 @@
     "workspace"
   ],
   "activationEvents": [
-    "onView:pi.sidebar"
+    "onView:pi.sidebar",
+    "onView:pi.launcher"
   ],
   "main": "./dist/extension.js",
   "files": [
@@ -43,6 +44,13 @@
   },
   "contributes": {
     "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "pi-for-vscode-launcher",
+          "title": "Open Pi",
+          "icon": "media/pi.svg"
+        }
+      ],
       "secondarySidebar": [
         {
           "id": "pi-for-vscode",
@@ -52,6 +60,12 @@
       ]
     },
     "views": {
+      "pi-for-vscode-launcher": [
+        {
+          "id": "pi.launcher",
+          "name": "Open Pi"
+        }
+      ],
       "pi-for-vscode": [
         {
           "id": "pi.sidebar",
@@ -61,6 +75,11 @@
       ]
     },
     "commands": [
+      {
+        "command": "pi.open",
+        "title": "Pi: Open Chat",
+        "icon": "$(comment-discussion)"
+      },
       {
         "command": "pi.refreshConnection",
         "title": "Pi: Refresh Connection",

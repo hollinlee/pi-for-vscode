@@ -21,8 +21,8 @@ For WSL, open the project with **Remote - WSL** (`WSL: Reopen Folder in WSL`). C
 ## Usage
 
 1. Open a trusted workspace in local Linux or Remote WSL.
-2. Show the Secondary Side Bar with **View: Toggle Secondary Side Bar** if it is hidden.
-3. Select the Pi view on the right.
+2. Select the Pi launcher in the Activity Bar, or show the Secondary Side Bar with **View: Toggle Secondary Side Bar**.
+3. Pi opens on the right while Explorer remains on the left.
 4. Use the session, model, and thinking controls above the message stream.
 5. Enter a prompt. Use the stop button to abort the active run.
 

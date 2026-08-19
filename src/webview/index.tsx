@@ -15,6 +15,7 @@ import {
   Square,
   TerminalSquare,
   Wrench,
+  X,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -29,7 +30,12 @@ import type {
   WebviewMessage,
 } from "../protocol.js";
 import { isSafeExternalUrl } from "../protocol.js";
-import { initialExtensionUiState, reduceExtensionUi } from "./extension-ui-reducer.js";
+import {
+  dismissExtensionNotification,
+  initialExtensionUiState,
+  notificationTimeout,
+  reduceExtensionUi,
+} from "./extension-ui-reducer.js";
 import "./styles.css";
 
 declare function acquireVsCodeApi(): { postMessage(message: WebviewMessage): void };
@@ -71,6 +77,9 @@ function App(): React.JSX.Element {
     vscode.postMessage({ type: "prompt", text: draft });
     setDraft("");
   };
+  const dismissNotification = React.useCallback((id: string) => {
+    setExtensionUi((state) => dismissExtensionNotification(state, id));
+  }, []);
 
   return (
     <main className={`shell ${connected ? "chat-shell" : ""}`}>
@@ -93,7 +102,7 @@ function App(): React.JSX.Element {
             />
             <ExtensionWidgets widgets={extensionUi.widgets} placement="belowEditor" />
           </div>
-          <NotificationStack notifications={extensionUi.notifications} />
+          <NotificationStack notifications={extensionUi.notifications} onDismiss={dismissNotification} />
           {extensionUi.dialogs[0] && <ExtensionDialog key={extensionUi.dialogs[0].id} request={extensionUi.dialogs[0]} />}
         </>
       ) : (
@@ -262,9 +271,43 @@ function ExtensionDialog({ request }: { request: ExtensionDialogRequest }): Reac
   );
 }
 
-function NotificationStack({ notifications }: { notifications: typeof initialExtensionUiState.notifications }): React.JSX.Element | null {
+function NotificationStack({ notifications, onDismiss }: {
+  notifications: typeof initialExtensionUiState.notifications;
+  onDismiss: (id: string) => void;
+}): React.JSX.Element | null {
   if (notifications.length === 0) return null;
-  return <div className="notification-stack" aria-live="polite">{notifications.map((item) => <div key={item.id} className={`extension-notification notify-${item.level}`}>{item.message}</div>)}</div>;
+  return (
+    <div className="notification-stack" aria-live="polite">
+      {notifications.map((item) => <ExtensionNotification key={item.id} notification={item} onDismiss={onDismiss} />)}
+    </div>
+  );
+}
+
+function ExtensionNotification({ notification, onDismiss }: {
+  notification: typeof initialExtensionUiState.notifications[number];
+  onDismiss: (id: string) => void;
+}): React.JSX.Element {
+  React.useEffect(() => {
+    const timeout = notificationTimeout(notification.level);
+    if (timeout === undefined) return;
+    const timer = window.setTimeout(() => onDismiss(notification.id), timeout);
+    return () => window.clearTimeout(timer);
+  }, [notification.id, notification.level, notification.message, onDismiss]);
+
+  return (
+    <div className={`extension-notification notify-${notification.level}`} role={notification.level === "error" ? "alert" : "status"}>
+      <span>{notification.message}</span>
+      <button
+        type="button"
+        className="notification-dismiss"
+        title="Dismiss notification"
+        aria-label="Dismiss notification"
+        onClick={() => onDismiss(notification.id)}
+      >
+        <X size={14} />
+      </button>
+    </div>
+  );
 }
 
 function ExtensionStatuses({ statuses }: { statuses: Record<string, string> }): React.JSX.Element | null {

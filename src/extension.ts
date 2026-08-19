@@ -32,7 +32,32 @@ export function activate(context: vscode.ExtensionContext): void {
   const unsubscribeControls = runtime.subscribeControls((snapshot) => provider.updateControls(snapshot));
   const unsubscribeExtensionUi = runtime.subscribeExtensionUi((event) => provider.updateExtensionUi(event));
 
+  const launcher = vscode.window.createTreeView<vscode.TreeItem>("pi.launcher", {
+    treeDataProvider: {
+      getTreeItem: (item) => item,
+      getChildren: () => [],
+    },
+  });
+  let openingPi = false;
+  const openPi = async () => {
+    if (openingPi) return;
+    openingPi = true;
+    try {
+      await vscode.commands.executeCommand("workbench.view.explorer");
+      await vscode.commands.executeCommand("pi.sidebar.focus");
+    } finally {
+      openingPi = false;
+    }
+  };
+  const openFromLauncher = launcher.onDidChangeVisibility(({ visible }) => {
+    if (visible) void openPi();
+  });
+  if (launcher.visible) void openPi();
+
   context.subscriptions.push(
+    launcher,
+    openFromLauncher,
+    vscode.commands.registerCommand("pi.open", openPi),
     vscode.window.registerWebviewViewProvider(PiViewProvider.viewType, provider, {
       webviewOptions: { retainContextWhenHidden: true },
     }),

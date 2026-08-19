@@ -251,7 +251,12 @@ button, textarea { font: inherit; }
   pointer-events: none;
 }
 .extension-notification {
-  padding: 7px 9px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 24px;
+  align-items: start;
+  gap: 6px;
+  min-height: 32px;
+  padding: 6px 5px 6px 9px;
   border: 1px solid var(--vscode-notifications-border, var(--vscode-panel-border));
   border-left-width: 3px;
   border-radius: 4px;
@@ -259,7 +264,23 @@ button, textarea { font: inherit; }
   background: var(--vscode-notifications-background, var(--vscode-sideBar-background));
   box-shadow: 0 2px 8px var(--vscode-widget-shadow);
   overflow-wrap: anywhere;
+  pointer-events: auto;
 }
+.extension-notification > span { min-width: 0; padding-block: 2px; }
+.notification-dismiss {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 3px;
+  padding: 0;
+  color: var(--vscode-icon-foreground);
+  background: transparent;
+  cursor: pointer;
+}
+.notification-dismiss:hover { background: var(--vscode-toolbar-hoverBackground); }
+.notification-dismiss:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
 .notify-info { border-left-color: var(--vscode-notificationsInfoIcon-foreground); }
 .notify-warning { border-left-color: var(--vscode-notificationsWarningIcon-foreground); }
 .notify-error { border-left-color: var(--vscode-notificationsErrorIcon-foreground); }

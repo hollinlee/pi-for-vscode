@@ -8,6 +8,7 @@ async function run() {
   assert.equal(extension.isActive, true);
 
   const commands = await vscode.commands.getCommands(true);
+  assert.ok(commands.includes("pi.open"));
   assert.ok(commands.includes("pi.refreshConnection"));
   assert.ok(commands.includes("pi.openSettings"));
 

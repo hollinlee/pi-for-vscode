@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.4
+
+- Add a Primary Activity Bar launcher that restores Explorer and focuses Pi in the Secondary Side Bar.
+- Make extension notifications dismissible; info messages expire after 5 seconds and warnings after 10 seconds, while errors remain until dismissed.
+
 ## 0.0.3
 
 - Place the Pi view in VS Code's Secondary Side Bar so Explorer and other Primary Side Bar views remain visible on the left.

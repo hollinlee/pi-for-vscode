@@ -401,7 +401,13 @@ export async function probePiVersion(
     return match[0];
   } catch (error) {
     const code = typeof error === "object" && error !== null && "code" in error ? String(error.code) : "";
-    if (code === "ENOENT") throw new Error(`pi executable not found: ${executable}`);
+    if (code === "ENOENT") {
+      const spawnPath = typeof error === "object" && error !== null && "path" in error ? String(error.path) : executable;
+      if (spawnCwd !== cwd) {
+        throw new Error(`Unable to start ${spawnPath}; Windows spawn cwd is unavailable: ${spawnCwd}`);
+      }
+      throw new Error(`pi executable not found: ${executable}`);
+    }
     throw error;
   }
 }

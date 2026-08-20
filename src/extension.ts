@@ -162,7 +162,7 @@ async function getLaunchTarget(workspacePath: string): Promise<PiLaunchTarget> {
       configuredExecutable: configuration.get<string>("executablePath", "pi"),
     });
     const sessionStore = new WslSessionStore(descriptor.distribution, descriptor.executable);
-    return { ...descriptor, spawnCwd: undefined, environment: process.env, sessionStore };
+    return { ...descriptor, environment: process.env, sessionStore };
   }
 
   const executable = await getExecutable();

@@ -52,6 +52,16 @@ describe("probePiVersion", () => {
     await expect(probePiVersion(process.execPath, process.cwd())).resolves.toMatch(/^\d+\.\d+\.\d+$/);
   });
 
+  it("uses a distinct spawn cwd for bridged executables", async () => {
+    await expect(probePiVersion(process.execPath, "/linux/workspace", process.env, [], process.cwd()))
+      .resolves.toMatch(/^\d+\.\d+\.\d+$/);
+  });
+
+  it("distinguishes a missing bridge spawn cwd from a missing executable", async () => {
+    await expect(probePiVersion(process.execPath, "/linux/workspace", process.env, [], "/definitely/missing/windows-cwd"))
+      .rejects.toThrow("spawn cwd is unavailable");
+  });
+
   it("maps a missing executable to an actionable error", async () => {
     await expect(probePiVersion("/definitely/missing/pi", process.cwd())).rejects.toThrow(
       "pi executable not found",

@@ -72,6 +72,7 @@ describe("WSL launch target", () => {
       executable: "wsl.exe",
       piExecutable: "/home/user/bin/pi",
       piCwd: "/mnt/c/work/repo",
+      spawnCwd: "C:\\work\\repo",
       executionLabel: "WSL: Debian",
     });
     expect(target.prefixArgs).toEqual(expect.arrayContaining([

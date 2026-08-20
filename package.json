@@ -2,7 +2,7 @@
   "name": "pi-for-vscode",
   "displayName": "Pi for VS Code",
   "description": "Use your installed pi coding agent from VS Code.",
-  "version": "0.0.9",
+  "version": "0.0.10",
   "publisher": "hollinlee",
   "license": "MIT",
   "repository": {

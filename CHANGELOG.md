@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.10
+
+- Keep the Windows workspace path as the `wsl.exe` spawn directory while using the mapped Linux path only inside WSL.
+- Distinguish an unavailable bridge spawn directory from a missing executable in connection errors.
+
 ## 0.0.9
 
 - Resolve Windows mapped drives backed by `\\wsl$\\<distro>` before converting the workspace path for the WSL bridge.

@@ -31,6 +31,7 @@ export interface WslTargetDescriptor {
   prefixArgs: string[];
   piExecutable: string;
   piCwd: string;
+  spawnCwd: string;
   executionLabel: string;
 }
 
@@ -50,6 +51,7 @@ export async function resolveWslTarget(options: WslTargetOptions): Promise<WslTa
     ],
     piExecutable,
     piCwd,
+    spawnCwd: options.workspacePath,
     executionLabel: `WSL: ${distribution}`,
   };
 }

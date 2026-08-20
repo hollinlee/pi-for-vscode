@@ -2,7 +2,14 @@ import { access } from "node:fs/promises";
 import path from "node:path";
 import * as vscode from "vscode";
 import { PiRuntime } from "./runtime/pi-runtime.js";
+import {
+  resolveWslTarget,
+  type ExecutionEnvironment,
+  type PiLaunchTarget,
+} from "./runtime/pi-launch-target.js";
 import { resolvePiExecutable } from "./runtime/pi-executable.js";
+import { SessionStore } from "./session/session-store.js";
+import { WslSessionStore } from "./session/wsl-session-store.js";
 import { PiViewProvider } from "./view/pi-view-provider.js";
 
 const ACTIVE_SESSION_KEY = "pi.activeSession";
@@ -90,16 +97,22 @@ async function connect(
     runtime.show({ phase: "error", message: "Open a workspace folder before starting pi." });
     return;
   }
-  let executable: string;
-  try {
-    executable = await getExecutable();
-  } catch (error) {
+  const target = await getLaunchTarget(folder.uri.fsPath).catch((error: unknown) => {
     runtime.show({ phase: "error", message: error instanceof Error ? error.message : String(error) });
-    return;
-  }
-  const restorablePath = sessionPath && await pathExists(sessionPath) ? sessionPath : undefined;
+    return undefined;
+  });
+  if (!target) return;
+  const restorablePath = sessionPath && (target.executionLabel.startsWith("WSL:") || await pathExists(sessionPath))
+    ? sessionPath
+    : undefined;
   if (sessionPath && !restorablePath) await context.workspaceState.update(ACTIVE_SESSION_KEY, undefined);
-  await runtime.connect(executable, folder.uri.fsPath, restorablePath);
+  await runtime.connect(target.executable, target.piCwd, restorablePath, {
+    prefixArgs: target.prefixArgs,
+    spawnCwd: target.spawnCwd,
+    environment: target.environment,
+    executionLabel: target.executionLabel,
+    sessionStore: target.sessionStore,
+  });
 }
 
 async function createSession(runtime: PiRuntime): Promise<void> {
@@ -117,19 +130,51 @@ async function createSession(runtime: PiRuntime): Promise<void> {
   }
   if (!folder) return;
 
-  const targetCwd = path.resolve(folder.uri.fsPath);
-  if (runtime.snapshot.phase === "ready" && runtime.snapshot.cwd && path.resolve(runtime.snapshot.cwd) === targetCwd) {
+  const target = await getLaunchTarget(folder.uri.fsPath).catch((error: unknown) => {
+    runtime.show({ phase: "error", message: error instanceof Error ? error.message : String(error) });
+    return undefined;
+  });
+  if (!target) return;
+  if (runtime.snapshot.phase === "ready" && runtime.snapshot.cwd === target.piCwd) {
     await runtime.newSession();
     return;
   }
-  let executable: string;
-  try {
-    executable = await getExecutable();
-  } catch (error) {
-    runtime.show({ phase: "error", message: error instanceof Error ? error.message : String(error) });
-    return;
+  await runtime.connect(target.executable, target.piCwd, undefined, {
+    prefixArgs: target.prefixArgs,
+    spawnCwd: target.spawnCwd,
+    environment: target.environment,
+    executionLabel: target.executionLabel,
+    sessionStore: target.sessionStore,
+  });
+}
+
+async function getLaunchTarget(workspacePath: string): Promise<PiLaunchTarget> {
+  const configuration = vscode.workspace.getConfiguration("pi");
+  const executionEnvironment = configuration.get<ExecutionEnvironment>("executionEnvironment", "auto");
+  const useWsl = process.platform === "win32" && executionEnvironment !== "local";
+  if (executionEnvironment === "wsl" && process.platform !== "win32") {
+    throw new Error("pi.executionEnvironment=wsl is only valid in a Windows Extension Host");
   }
-  await runtime.connect(executable, targetCwd);
+  if (useWsl) {
+    const descriptor = await resolveWslTarget({
+      workspacePath,
+      configuredDistribution: configuration.get<string>("wslDistribution", ""),
+      configuredExecutable: configuration.get<string>("executablePath", "pi"),
+    });
+    const sessionStore = new WslSessionStore(descriptor.distribution, descriptor.executable);
+    return { ...descriptor, spawnCwd: undefined, environment: process.env, sessionStore };
+  }
+
+  const executable = await getExecutable();
+  return {
+    executable,
+    prefixArgs: [],
+    piExecutable: executable,
+    piCwd: path.resolve(workspacePath),
+    spawnCwd: path.resolve(workspacePath),
+    executionLabel: vscode.env.remoteName === "wsl" ? "Remote WSL" : "Local",
+    sessionStore: new SessionStore(),
+  };
 }
 
 async function getExecutable(): Promise<string> {

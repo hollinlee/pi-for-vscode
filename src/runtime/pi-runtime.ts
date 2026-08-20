@@ -16,7 +16,7 @@ import { normalizeExtensionUiEvent } from "../rpc/extension-ui.js";
 import { resolvePiEnvironment } from "./pi-environment.js";
 import { RpcClient } from "../rpc/rpc-client.js";
 import { hydrateAgentMessages } from "../session/hydrate-messages.js";
-import { SessionStore } from "../session/session-store.js";
+import { SessionStore, type SessionCatalog } from "../session/session-store.js";
 import { isRecord } from "../utils/is-record.js";
 
 const execFileAsync = promisify(execFile);
@@ -26,6 +26,14 @@ type ChatListener = (event: ChatEvent) => void;
 type SessionListener = (snapshot: SessionSnapshot) => void;
 type ControlsListener = (snapshot: ControlsSnapshot) => void;
 type ExtensionUiListener = (event: ExtensionUiEvent) => void;
+
+interface PiRuntimeConnectOptions {
+  prefixArgs?: string[];
+  spawnCwd?: string;
+  environment?: NodeJS.ProcessEnv;
+  executionLabel?: string;
+  sessionStore?: SessionCatalog;
+}
 
 interface PendingExtensionUi {
   method: "select" | "confirm" | "input" | "editor";
@@ -40,7 +48,7 @@ export class PiRuntime extends EventEmitter {
   readonly #controlsListeners = new Set<ControlsListener>();
   readonly #extensionUiListeners = new Set<ExtensionUiListener>();
   readonly #pendingExtensionUi = new Map<string, PendingExtensionUi>();
-  readonly #sessionStore: SessionStore;
+  #sessionStore: SessionCatalog;
   #client: RpcClient | undefined;
   #snapshot: ConnectionSnapshot = { phase: "disconnected" };
   #sessionSnapshot: SessionSnapshot = { sessions: [] };
@@ -89,24 +97,35 @@ export class PiRuntime extends EventEmitter {
     return () => this.#extensionUiListeners.delete(listener);
   }
 
-  async connect(executable: string, cwd: string, sessionPath?: string): Promise<void> {
+  async connect(executable: string, cwd: string, sessionPath?: string, options: PiRuntimeConnectOptions = {}): Promise<void> {
     await this.dispose();
     this.#normalizer.reset();
     this.#running = false;
     this.#emitChat({ type: "reset" });
     this.#setSession({ cwd, sessions: [] });
     this.#setControls({ models: [], thinkingLevel: "off", thinkingLevels: ["off"], commands: [] });
-    this.#set({ phase: "starting", executable, cwd });
+    if (options.sessionStore) this.#sessionStore = options.sessionStore;
+    const startingSnapshot: ConnectionSnapshot = {
+      phase: "starting",
+      executable,
+      cwd,
+      executionLabel: options.executionLabel,
+    };
+    this.#set(startingSnapshot);
     try {
-      const environment = await resolvePiEnvironment();
-      const version = await probePiVersion(executable, cwd, environment);
+      const environment = options.environment ?? await resolvePiEnvironment();
+      const prefixArgs = options.prefixArgs ?? [];
+      const version = await probePiVersion(executable, cwd, environment, prefixArgs, options.spawnCwd);
       if (compareVersions(version, MINIMUM_PI_VERSION) < 0) {
         throw new Error(`pi ${version} is incompatible; ${MINIMUM_PI_VERSION} or newer is required`);
       }
 
       const args = ["--mode", "rpc", "--approve"];
       if (sessionPath) args.push("--session", sessionPath);
-      const client = RpcClient.launch(executable, args, { cwd, env: environment });
+      const client = RpcClient.launch(executable, [...prefixArgs, ...args], {
+        cwd: options.spawnCwd ?? cwd,
+        env: environment,
+      });
       this.#client = client;
       client.on("event", (value: unknown) => {
         if (this.#client === client) this.#handleRpcEvent(value);
@@ -119,10 +138,10 @@ export class PiRuntime extends EventEmitter {
       });
       await this.#synchronizeRuntime(client, cwd);
       if (this.#client !== client) return;
-      this.#set({ phase: "ready", executable, version, cwd, pid: client.pid });
+      this.#set({ ...startingSnapshot, phase: "ready", version, pid: client.pid });
     } catch (error) {
       await this.dispose();
-      this.#set({ phase: "error", executable, cwd, message: toActionableMessage(error) });
+      this.#set({ ...startingSnapshot, phase: "error", message: toActionableMessage(error) });
     }
   }
 
@@ -363,10 +382,16 @@ export class PiRuntime extends EventEmitter {
   }
 }
 
-export async function probePiVersion(executable: string, cwd: string, env?: NodeJS.ProcessEnv): Promise<string> {
+export async function probePiVersion(
+  executable: string,
+  cwd: string,
+  env?: NodeJS.ProcessEnv,
+  prefixArgs: string[] = [],
+  spawnCwd = cwd,
+): Promise<string> {
   try {
-    const { stdout } = await execFileAsync(executable, ["--version"], {
-      cwd,
+    const { stdout } = await execFileAsync(executable, [...prefixArgs, "--version"], {
+      cwd: spawnCwd,
       env,
       timeout: 5_000,
       maxBuffer: 64 * 1024,

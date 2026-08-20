@@ -52,6 +52,30 @@ describe("SessionStore", () => {
     });
   });
 
+  it("converts storage paths to runtime paths", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "pi-sessions-"));
+    temporaryDirectories.push(root);
+    const cwd = "/home/user/project";
+    const store = new SessionStore({
+      agentDir: path.join(root, "agent"),
+      cwdPath: path.posix,
+      toRuntimePath: (filePath) => `/runtime/${path.basename(filePath)}`,
+    });
+    const directory = store.sessionDirectory(cwd);
+    await mkdir(directory, { recursive: true });
+    await writeFile(path.join(directory, "session.jsonl"), sessionJsonl({
+      id: "runtime-path",
+      cwd,
+      timestamp: "2026-01-01T00:00:00.000Z",
+      prompt: "hello",
+      messageTimestamp: 1_767_225_600_000,
+    }));
+
+    await expect(store.list(cwd)).resolves.toEqual([
+      expect.objectContaining({ path: "/runtime/session.jsonl", cwd }),
+    ]);
+  });
+
   it("returns an empty list when the session directory is absent", async () => {
     const root = await mkdtemp(path.join(tmpdir(), "pi-sessions-"));
     temporaryDirectories.push(root);

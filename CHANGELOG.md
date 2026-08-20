@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.8
+
+- Add a Windows-to-WSL bridge that launches pi RPC through `wsl.exe` from a local Windows VS Code window.
+- Map Windows and WSL UNC workspace paths to Linux paths, load credentials through the WSL login shell, and list pi-owned sessions through a bounded WSL helper.
+- Show the active execution environment next to the pi working directory.
+
 ## 0.0.7
 
 - Load extension, prompt-template, and skill slash commands from the active pi RPC session.

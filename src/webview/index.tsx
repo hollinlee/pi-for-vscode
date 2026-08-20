@@ -92,7 +92,7 @@ function App(): React.JSX.Element {
           <div className="bottom-area">
             <ExtensionWidgets widgets={extensionUi.widgets} placement="aboveEditor" />
             <ExtensionStatuses statuses={extensionUi.statuses} />
-            <WorkspaceContext cwd={connection.cwd} />
+            <WorkspaceContext cwd={connection.cwd} executionLabel={connection.executionLabel} />
             <Composer
               value={draft}
               commands={controls.commands}
@@ -151,12 +151,19 @@ function SessionBar({ session, disabled }: { session: SessionSnapshot; disabled:
   );
 }
 
-function WorkspaceContext({ cwd }: { cwd?: string }): React.JSX.Element {
+function WorkspaceContext({ cwd, executionLabel }: { cwd?: string; executionLabel?: string }): React.JSX.Element {
   return (
-    <div className="workspace-context" title={cwd ?? "Workspace unavailable"}>
-      <Folder size={13} aria-hidden="true" />
-      <span className="context-label">CWD</span>
-      <span className="context-value">{cwd ?? "Unavailable"}</span>
+    <div className="execution-context">
+      <div className="workspace-context" title={cwd ?? "Workspace unavailable"}>
+        <Folder size={13} aria-hidden="true" />
+        <span className="context-label">CWD</span>
+        <span className="context-value">{cwd ?? "Unavailable"}</span>
+      </div>
+      <div className="environment-context" title={executionLabel ?? "Execution environment unavailable"}>
+        <TerminalSquare size={13} aria-hidden="true" />
+        <span className="context-label">ENV</span>
+        <span className="context-value">{executionLabel ?? "Unavailable"}</span>
+      </div>
     </div>
   );
 }

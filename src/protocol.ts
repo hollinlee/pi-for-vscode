@@ -9,6 +9,7 @@ export interface ConnectionSnapshot {
   executable?: string;
   version?: string;
   cwd?: string;
+  executionLabel?: string;
   pid?: number;
   message?: string;
 }

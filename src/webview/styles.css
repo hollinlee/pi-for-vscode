@@ -228,7 +228,14 @@ button, textarea { font: inherit; }
 .chat-error { margin: 8px 0; padding-left: 9px; border-left: 2px solid var(--vscode-testing-iconFailed); color: var(--vscode-errorForeground); line-height: 1.45; }
 
 .bottom-area { display: grid; gap: 5px; }
-.workspace-context {
+.execution-context {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+.workspace-context,
+.environment-context {
   min-width: 0;
   min-height: 22px;
   display: grid;
@@ -238,6 +245,7 @@ button, textarea { font: inherit; }
   color: var(--vscode-descriptionForeground);
   font-size: 10px;
 }
+.environment-context .context-value { max-width: 100px; }
 .context-label { font-weight: 600; }
 .context-value {
   overflow: hidden;

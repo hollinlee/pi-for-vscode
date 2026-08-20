@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.9
+
+- Resolve Windows mapped drives backed by `\\wsl$\\<distro>` before converting the workspace path for the WSL bridge.
+- Reject mapped workspaces whose WSL distribution differs from `pi.wslDistribution`.
+
 ## 0.0.8
 
 - Add a Windows-to-WSL bridge that launches pi RPC through `wsl.exe` from a local Windows VS Code window.

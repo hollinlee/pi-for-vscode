@@ -74,16 +74,44 @@ export async function toWslPath(
   wslExecutable = "wsl.exe",
   run: typeof execFileAsync = execFileAsync,
 ): Promise<string> {
-  const unc = parseWslUncPath(workspacePath);
+  const expandedWorkspacePath = await expandMappedDrive(workspacePath, run);
+  const unc = parseWslUncPath(expandedWorkspacePath);
   if (unc) {
     if (unc.distribution.toLocaleLowerCase() !== distribution.toLocaleLowerCase()) {
       throw new Error(`Workspace belongs to WSL distribution ${unc.distribution}, not ${distribution}`);
     }
     return unc.linuxPath;
   }
-  const converted = await runWsl(wslExecutable, distribution, ["wslpath", "-a", workspacePath], run);
+  const converted = await runWsl(wslExecutable, distribution, ["wslpath", "-a", expandedWorkspacePath], run);
   if (!converted.startsWith("/")) throw new Error(`Unable to map workspace path into WSL: ${workspacePath}`);
   return converted;
+}
+
+export async function expandMappedDrive(
+  workspacePath: string,
+  run: typeof execFileAsync = execFileAsync,
+): Promise<string> {
+  const match = workspacePath.match(/^([A-Za-z]):[\\/](.*)$/);
+  if (!match?.[1]) return workspacePath;
+  const drive = match[1].toUpperCase();
+  try {
+    const { stdout } = await run("powershell.exe", [
+      "-NoProfile",
+      "-NonInteractive",
+      "-Command",
+      `(Get-PSDrive -Name '${drive}' -PSProvider FileSystem).DisplayRoot | ConvertTo-Json -Compress`,
+    ], {
+      timeout: 5_000,
+      windowsHide: true,
+      maxBuffer: 64 * 1024,
+    });
+    const displayRoot: unknown = JSON.parse(cleanWslOutput(stdout));
+    if (typeof displayRoot !== "string" || !displayRoot.startsWith("\\\\")) return workspacePath;
+    const suffix = (match[2] ?? "").replaceAll("/", "\\");
+    return `${displayRoot.replace(/[\\/]+$/, "")}\\${suffix}`;
+  } catch {
+    return workspacePath;
+  }
 }
 
 export function parseWslUncPath(value: string): { distribution: string; linuxPath: string } | undefined {

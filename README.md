@@ -49,7 +49,7 @@ Markdown HTML is not rendered. External links are restricted to credential-free 
 | macOS local | Not validated in the initial release |
 | VSCodium | Not validated in the initial release |
 
-The Windows bridge defaults to the first installed WSL distribution. Set `pi.wslDistribution` to pin one explicitly. Windows paths are mapped with `wslpath`; `\\wsl.localhost\\<distro>\\...` and `\\wsl$\\<distro>\\...` workspaces are mapped directly. Provider and tool credentials are loaded by the selected distribution's interactive login shell.
+The Windows bridge defaults to the first installed WSL distribution. Set `pi.wslDistribution` to pin one explicitly. Windows paths are mapped with `wslpath`. Drives mapped to `\\wsl$\\<distro>` are expanded to their UNC root first. `\\wsl.localhost\\<distro>\\...` and `\\wsl$\\<distro>\\...` workspaces are mapped directly. Provider and tool credentials are loaded by the selected distribution's interactive login shell.
 
 Windows Explorer file associations always start local `Code.exe`, even for WSL UNC paths. Explorer does not attach the `--remote wsl+<distro>` authority because doing so would change the Extension Host, terminal, debugger, and trust boundary. Use **WSL: Reopen Folder in WSL** for a true Remote WSL window; otherwise Pi for VS Code uses the local-window WSL bridge.
 

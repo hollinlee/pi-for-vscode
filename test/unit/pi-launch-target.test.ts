@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   defaultWslDistribution,
+  expandMappedDrive,
   parseWslUncPath,
   resolveWslTarget,
   toWslPath,
@@ -16,6 +17,36 @@ describe("WSL launch target", () => {
       distribution: "Debian",
       linuxPath: "/home/user",
     });
+  });
+
+  it("expands mapped WSL drives before path conversion", async () => {
+    const run = vi.fn((_executable: string, args: string[]) => {
+      if (_executable === "powershell.exe") {
+        return Promise.resolve({ stdout: '"\\\\\\\\wsl$\\\\Debian"\r\n', stderr: "" });
+      }
+      throw new Error(`Unexpected executable: ${_executable} ${args.join(" ")}`);
+    });
+
+    await expect(expandMappedDrive("Z:\\home\\user\\project", run as never))
+      .resolves.toBe("\\\\wsl$\\Debian\\home\\user\\project");
+    await expect(toWslPath("Z:\\home\\user\\project", "Debian", "wsl.exe", run as never))
+      .resolves.toBe("/home/user/project");
+    expect(run).toHaveBeenCalledWith("powershell.exe", expect.arrayContaining([
+      "-NoProfile",
+      "-NonInteractive",
+      expect.stringContaining("Get-PSDrive -Name 'Z'"),
+    ]), expect.objectContaining({ windowsHide: true }));
+  });
+
+  it("keeps local drive paths when no network mapping exists", async () => {
+    const run = vi.fn(() => Promise.resolve({ stdout: "null\r\n", stderr: "" }));
+    await expect(expandMappedDrive("C:\\work\\repo", run as never)).resolves.toBe("C:\\work\\repo");
+  });
+
+  it("rejects a mapped drive from a different distribution", async () => {
+    const run = vi.fn(() => Promise.resolve({ stdout: '"\\\\\\\\wsl$\\\\Ubuntu"', stderr: "" }));
+    await expect(toWslPath("Z:\\home\\user", "Debian", "wsl.exe", run as never))
+      .rejects.toThrow("belongs to WSL distribution Ubuntu");
   });
 
   it("rejects a workspace from a different distribution", async () => {

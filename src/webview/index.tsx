@@ -11,10 +11,10 @@ import {
   RefreshCw,
   Send,
   Settings,
-  SlidersHorizontal,
   Square,
   TerminalSquare,
   Wrench,
+  X,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -26,17 +26,24 @@ import type {
   ExtensionUiResponse,
   HostMessage,
   SessionSnapshot,
+  SlashCommandSummary,
   WebviewMessage,
 } from "../protocol.js";
 import { isSafeExternalUrl } from "../protocol.js";
-import { initialExtensionUiState, reduceExtensionUi } from "./extension-ui-reducer.js";
+import {
+  dismissExtensionNotification,
+  initialExtensionUiState,
+  notificationTimeout,
+  reduceExtensionUi,
+} from "./extension-ui-reducer.js";
+import { completeSlashCommand, filterSlashCommands } from "./slash-commands.js";
 import "./styles.css";
 
 declare function acquireVsCodeApi(): { postMessage(message: WebviewMessage): void };
 const vscode = acquireVsCodeApi();
 const initialConnection: ConnectionSnapshot = { phase: "disconnected" };
 const initialSession: SessionSnapshot = { sessions: [] };
-const initialControls: ControlsSnapshot = { models: [], thinkingLevel: "off", thinkingLevels: ["off"] };
+const initialControls: ControlsSnapshot = { models: [], thinkingLevel: "off", thinkingLevels: ["off"], commands: [] };
 
 function App(): React.JSX.Element {
   const [connection, setConnection] = React.useState(initialConnection);
@@ -71,6 +78,9 @@ function App(): React.JSX.Element {
     vscode.postMessage({ type: "prompt", text: draft });
     setDraft("");
   };
+  const dismissNotification = React.useCallback((id: string) => {
+    setExtensionUi((state) => dismissExtensionNotification(state, id));
+  }, []);
 
   return (
     <main className={`shell ${connected ? "chat-shell" : ""}`}>
@@ -78,22 +88,24 @@ function App(): React.JSX.Element {
       {connected ? (
         <>
           <SessionBar session={session} disabled={running} />
-          <ControlsBar controls={controls} disabled={running} />
           <MessageStream chat={chat} />
           <div className="bottom-area">
             <ExtensionWidgets widgets={extensionUi.widgets} placement="aboveEditor" />
             <ExtensionStatuses statuses={extensionUi.statuses} />
+            <WorkspaceContext cwd={connection.cwd} executionLabel={connection.executionLabel} />
             <Composer
               value={draft}
+              commands={controls.commands}
               running={running}
               aborting={chat.phase === "aborting"}
               onChange={setDraft}
               onSubmit={submit}
               onAbort={() => vscode.postMessage({ type: "abort" })}
             />
+            <ControlsBar controls={controls} disabled={running} />
             <ExtensionWidgets widgets={extensionUi.widgets} placement="belowEditor" />
           </div>
-          <NotificationStack notifications={extensionUi.notifications} />
+          <NotificationStack notifications={extensionUi.notifications} onDismiss={dismissNotification} />
           {extensionUi.dialogs[0] && <ExtensionDialog key={extensionUi.dialogs[0].id} request={extensionUi.dialogs[0]} />}
         </>
       ) : (
@@ -139,28 +151,51 @@ function SessionBar({ session, disabled }: { session: SessionSnapshot; disabled:
   );
 }
 
+function WorkspaceContext({ cwd, executionLabel }: { cwd?: string; executionLabel?: string }): React.JSX.Element {
+  return (
+    <div className="execution-context">
+      <div className="workspace-context" title={cwd ?? "Workspace unavailable"}>
+        <Folder size={13} aria-hidden="true" />
+        <span className="context-label">CWD</span>
+        <span className="context-value">{cwd ?? "Unavailable"}</span>
+      </div>
+      <div className="environment-context" title={executionLabel ?? "Execution environment unavailable"}>
+        <TerminalSquare size={13} aria-hidden="true" />
+        <span className="context-label">ENV</span>
+        <span className="context-value">{executionLabel ?? "Unavailable"}</span>
+      </div>
+    </div>
+  );
+}
+
 function ControlsBar({ controls, disabled }: { controls: ControlsSnapshot; disabled: boolean }): React.JSX.Element {
   const modelValue = controls.model ? encodeModel(controls.model.provider, controls.model.id) : "";
   const modelListed = controls.model && controls.models.some((model) => model.provider === controls.model?.provider && model.id === controls.model.id);
   return (
     <div className="controls-bar">
-      <SlidersHorizontal size={13} aria-hidden="true" />
-      <select
-        aria-label="Pi model"
-        value={modelValue}
-        disabled={disabled || controls.models.length === 0}
-        onChange={(event) => {
-          const selected = controls.models.find((model) => encodeModel(model.provider, model.id) === event.target.value);
-          if (selected) vscode.postMessage({ type: "setModel", provider: selected.provider, modelId: selected.id });
-        }}
-      >
-        {!controls.model && <option value="">No model</option>}
-        {controls.model && !modelListed && <option value={modelValue}>{controls.model.name}</option>}
-        {controls.models.map((model) => <option key={encodeModel(model.provider, model.id)} value={encodeModel(model.provider, model.id)}>{model.provider} / {model.name}</option>)}
-      </select>
-      <select aria-label="Pi thinking level" value={controls.thinkingLevel} disabled={disabled} onChange={(event) => vscode.postMessage({ type: "setThinkingLevel", level: event.target.value })}>
-        {controls.thinkingLevels.map((level) => <option key={level} value={level}>{level}</option>)}
-      </select>
+      <div className="control-field">
+        <label htmlFor="pi-model">Model</label>
+        <select
+          id="pi-model"
+          aria-label="Pi model"
+          value={modelValue}
+          disabled={disabled || controls.models.length === 0}
+          onChange={(event) => {
+            const selected = controls.models.find((model) => encodeModel(model.provider, model.id) === event.target.value);
+            if (selected) vscode.postMessage({ type: "setModel", provider: selected.provider, modelId: selected.id });
+          }}
+        >
+          {!controls.model && <option value="">No model</option>}
+          {controls.model && !modelListed && <option value={modelValue}>{controls.model.name}</option>}
+          {controls.models.map((model) => <option key={encodeModel(model.provider, model.id)} value={encodeModel(model.provider, model.id)}>{model.provider} / {model.name}</option>)}
+        </select>
+      </div>
+      <div className="control-field thinking-field">
+        <label htmlFor="pi-thinking">Thinking</label>
+        <select id="pi-thinking" aria-label="Pi thinking level" value={controls.thinkingLevel} disabled={disabled} onChange={(event) => vscode.postMessage({ type: "setThinkingLevel", level: event.target.value })}>
+          {controls.thinkingLevels.map((level) => <option key={level} value={level}>{level}</option>)}
+        </select>
+      </div>
     </div>
   );
 }
@@ -262,9 +297,43 @@ function ExtensionDialog({ request }: { request: ExtensionDialogRequest }): Reac
   );
 }
 
-function NotificationStack({ notifications }: { notifications: typeof initialExtensionUiState.notifications }): React.JSX.Element | null {
+function NotificationStack({ notifications, onDismiss }: {
+  notifications: typeof initialExtensionUiState.notifications;
+  onDismiss: (id: string) => void;
+}): React.JSX.Element | null {
   if (notifications.length === 0) return null;
-  return <div className="notification-stack" aria-live="polite">{notifications.map((item) => <div key={item.id} className={`extension-notification notify-${item.level}`}>{item.message}</div>)}</div>;
+  return (
+    <div className="notification-stack" aria-live="polite">
+      {notifications.map((item) => <ExtensionNotification key={item.id} notification={item} onDismiss={onDismiss} />)}
+    </div>
+  );
+}
+
+function ExtensionNotification({ notification, onDismiss }: {
+  notification: typeof initialExtensionUiState.notifications[number];
+  onDismiss: (id: string) => void;
+}): React.JSX.Element {
+  React.useEffect(() => {
+    const timeout = notificationTimeout(notification.level);
+    if (timeout === undefined) return;
+    const timer = window.setTimeout(() => onDismiss(notification.id), timeout);
+    return () => window.clearTimeout(timer);
+  }, [notification.id, notification.level, notification.message, onDismiss]);
+
+  return (
+    <div className={`extension-notification notify-${notification.level}`} role={notification.level === "error" ? "alert" : "status"}>
+      <span>{notification.message}</span>
+      <button
+        type="button"
+        className="notification-dismiss"
+        title="Dismiss notification"
+        aria-label="Dismiss notification"
+        onClick={() => onDismiss(notification.id)}
+      >
+        <X size={14} />
+      </button>
+    </div>
+  );
 }
 
 function ExtensionStatuses({ statuses }: { statuses: Record<string, string> }): React.JSX.Element | null {
@@ -277,10 +346,95 @@ function ExtensionWidgets({ widgets, placement }: { widgets: typeof initialExten
   return entries.length === 0 ? null : <div className="extension-widgets">{entries.map(([key, widget]) => <div key={key}>{widget.lines.map((line, index) => <div key={index}>{line}</div>)}</div>)}</div>;
 }
 
-function Composer(props: { value: string; running: boolean; aborting: boolean; onChange: (value: string) => void; onSubmit: () => void; onAbort: () => void }): React.JSX.Element {
+function Composer(props: {
+  value: string;
+  commands: SlashCommandSummary[];
+  running: boolean;
+  aborting: boolean;
+  onChange: (value: string) => void;
+  onSubmit: () => void;
+  onAbort: () => void;
+}): React.JSX.Element {
+  const [selectedIndex, setSelectedIndex] = React.useState(0);
+  const [dismissedDraft, setDismissedDraft] = React.useState<string>();
+  const suggestions = dismissedDraft === props.value ? [] : filterSlashCommands(props.commands, props.value);
+  React.useEffect(() => { setSelectedIndex(0); }, [props.value]);
+
+  const complete = (command: SlashCommandSummary) => {
+    props.onChange(completeSlashCommand(command));
+    setDismissedDraft(undefined);
+  };
+
   return (
-    <form className="composer" onSubmit={(event) => { event.preventDefault(); props.onSubmit(); }}>
-      <textarea aria-label="Message Pi" placeholder="Message Pi" value={props.value} disabled={props.running} rows={3} onChange={(event) => props.onChange(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); props.onSubmit(); } }} />
+    <form className="composer" onSubmit={(event) => {
+      event.preventDefault();
+      const selected = suggestions[selectedIndex];
+      if (selected) complete(selected);
+      else props.onSubmit();
+    }}>
+      {suggestions.length > 0 && (
+        <div className="slash-menu" role="listbox" aria-label="Pi commands">
+          {suggestions.map((command, index) => (
+            <button
+              key={`${command.source}:${command.name}`}
+              type="button"
+              role="option"
+              aria-selected={index === selectedIndex}
+              className={index === selectedIndex ? "selected" : ""}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => complete(command)}
+            >
+              <span className="slash-name">/{command.name}</span>
+              <span className="slash-source">{command.source}</span>
+              {command.description && <span className="slash-description">{command.description}</span>}
+            </button>
+          ))}
+        </div>
+      )}
+      <textarea
+        aria-label="Message Pi"
+        aria-autocomplete="list"
+        aria-expanded={suggestions.length > 0}
+        placeholder="Message Pi"
+        value={props.value}
+        disabled={props.running}
+        rows={3}
+        onChange={(event) => {
+          setDismissedDraft(undefined);
+          props.onChange(event.target.value);
+        }}
+        onKeyDown={(event) => {
+          if (suggestions.length > 0) {
+            if (event.key === "ArrowDown") {
+              event.preventDefault();
+              setSelectedIndex((index) => (index + 1) % suggestions.length);
+              return;
+            }
+            if (event.key === "ArrowUp") {
+              event.preventDefault();
+              setSelectedIndex((index) => (index - 1 + suggestions.length) % suggestions.length);
+              return;
+            }
+            if (event.key === "Tab") {
+              event.preventDefault();
+              const selected = suggestions[selectedIndex];
+              if (selected) complete(selected);
+              return;
+            }
+            if (event.key === "Escape") {
+              event.preventDefault();
+              setDismissedDraft(props.value);
+              return;
+            }
+          }
+          if (event.key === "Enter" && !event.shiftKey) {
+            event.preventDefault();
+            const selected = suggestions[selectedIndex];
+            if (selected) complete(selected);
+            else props.onSubmit();
+          }
+        }}
+      />
       {props.running ? <button className="send-button stop-button" type="button" onClick={props.onAbort} disabled={props.aborting} title="Stop" aria-label="Stop"><Square size={14} fill="currentColor" /></button> : <button className="send-button" type="submit" disabled={!props.value.trim()} title="Send" aria-label="Send"><Send size={15} /></button>}
     </form>
   );

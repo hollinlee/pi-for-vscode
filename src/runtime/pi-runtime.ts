@@ -10,11 +10,13 @@ import type {
   ExtensionUiResponse,
   ModelSummary,
   SessionSnapshot,
+  SlashCommandSummary,
 } from "../protocol.js";
 import { normalizeExtensionUiEvent } from "../rpc/extension-ui.js";
+import { resolvePiEnvironment } from "./pi-environment.js";
 import { RpcClient } from "../rpc/rpc-client.js";
 import { hydrateAgentMessages } from "../session/hydrate-messages.js";
-import { SessionStore } from "../session/session-store.js";
+import { SessionStore, type SessionCatalog } from "../session/session-store.js";
 import { isRecord } from "../utils/is-record.js";
 
 const execFileAsync = promisify(execFile);
@@ -24,6 +26,14 @@ type ChatListener = (event: ChatEvent) => void;
 type SessionListener = (snapshot: SessionSnapshot) => void;
 type ControlsListener = (snapshot: ControlsSnapshot) => void;
 type ExtensionUiListener = (event: ExtensionUiEvent) => void;
+
+interface PiRuntimeConnectOptions {
+  prefixArgs?: string[];
+  spawnCwd?: string;
+  environment?: NodeJS.ProcessEnv;
+  executionLabel?: string;
+  sessionStore?: SessionCatalog;
+}
 
 interface PendingExtensionUi {
   method: "select" | "confirm" | "input" | "editor";
@@ -38,11 +48,11 @@ export class PiRuntime extends EventEmitter {
   readonly #controlsListeners = new Set<ControlsListener>();
   readonly #extensionUiListeners = new Set<ExtensionUiListener>();
   readonly #pendingExtensionUi = new Map<string, PendingExtensionUi>();
-  readonly #sessionStore: SessionStore;
+  #sessionStore: SessionCatalog;
   #client: RpcClient | undefined;
   #snapshot: ConnectionSnapshot = { phase: "disconnected" };
   #sessionSnapshot: SessionSnapshot = { sessions: [] };
-  #controlsSnapshot: ControlsSnapshot = { models: [], thinkingLevel: "off", thinkingLevels: ["off"] };
+  #controlsSnapshot: ControlsSnapshot = { models: [], thinkingLevel: "off", thinkingLevels: ["off"], commands: [] };
   #userSequence = 0;
   #running = false;
 
@@ -87,23 +97,35 @@ export class PiRuntime extends EventEmitter {
     return () => this.#extensionUiListeners.delete(listener);
   }
 
-  async connect(executable: string, cwd: string, sessionPath?: string): Promise<void> {
+  async connect(executable: string, cwd: string, sessionPath?: string, options: PiRuntimeConnectOptions = {}): Promise<void> {
     await this.dispose();
     this.#normalizer.reset();
     this.#running = false;
     this.#emitChat({ type: "reset" });
     this.#setSession({ cwd, sessions: [] });
-    this.#setControls({ models: [], thinkingLevel: "off", thinkingLevels: ["off"] });
-    this.#set({ phase: "starting", executable, cwd });
+    this.#setControls({ models: [], thinkingLevel: "off", thinkingLevels: ["off"], commands: [] });
+    if (options.sessionStore) this.#sessionStore = options.sessionStore;
+    const startingSnapshot: ConnectionSnapshot = {
+      phase: "starting",
+      executable,
+      cwd,
+      executionLabel: options.executionLabel,
+    };
+    this.#set(startingSnapshot);
     try {
-      const version = await probePiVersion(executable, cwd);
+      const environment = options.environment ?? await resolvePiEnvironment();
+      const prefixArgs = options.prefixArgs ?? [];
+      const version = await probePiVersion(executable, cwd, environment, prefixArgs, options.spawnCwd);
       if (compareVersions(version, MINIMUM_PI_VERSION) < 0) {
         throw new Error(`pi ${version} is incompatible; ${MINIMUM_PI_VERSION} or newer is required`);
       }
 
       const args = ["--mode", "rpc", "--approve"];
       if (sessionPath) args.push("--session", sessionPath);
-      const client = RpcClient.launch(executable, args, { cwd });
+      const client = RpcClient.launch(executable, [...prefixArgs, ...args], {
+        cwd: options.spawnCwd ?? cwd,
+        env: environment,
+      });
       this.#client = client;
       client.on("event", (value: unknown) => {
         if (this.#client === client) this.#handleRpcEvent(value);
@@ -116,10 +138,10 @@ export class PiRuntime extends EventEmitter {
       });
       await this.#synchronizeRuntime(client, cwd);
       if (this.#client !== client) return;
-      this.#set({ phase: "ready", executable, version, cwd, pid: client.pid });
+      this.#set({ ...startingSnapshot, phase: "ready", version, pid: client.pid });
     } catch (error) {
       await this.dispose();
-      this.#set({ phase: "error", executable, cwd, message: toActionableMessage(error) });
+      this.#set({ ...startingSnapshot, phase: "error", message: toActionableMessage(error) });
     }
   }
 
@@ -280,10 +302,11 @@ export class PiRuntime extends EventEmitter {
   }
 
   async #synchronizeControls(client: RpcClient, knownState?: unknown): Promise<void> {
-    const [state, modelData, thinkingData] = await Promise.all([
+    const [state, modelData, thinkingData, commandData] = await Promise.all([
       knownState === undefined ? client.request("get_state") : Promise.resolve(knownState),
       client.request("get_available_models"),
       client.request("get_available_thinking_levels"),
+      client.request("get_commands"),
     ]);
     if (this.#client !== client) return;
     const model = isRecord(state) ? parseModel(state.model) : undefined;
@@ -294,7 +317,10 @@ export class PiRuntime extends EventEmitter {
     const thinkingLevels = isRecord(thinkingData) && Array.isArray(thinkingData.levels)
       ? thinkingData.levels.filter((level): level is string => typeof level === "string")
       : ["off"];
-    this.#setControls({ model, models, thinkingLevel, thinkingLevels });
+    const commands = isRecord(commandData) && Array.isArray(commandData.commands)
+      ? commandData.commands.map(parseSlashCommand).filter((item): item is SlashCommandSummary => item !== undefined)
+      : [];
+    this.#setControls({ model, models, thinkingLevel, thinkingLevels, commands });
   }
 
   #requireClient(): RpcClient {
@@ -356,10 +382,17 @@ export class PiRuntime extends EventEmitter {
   }
 }
 
-export async function probePiVersion(executable: string, cwd: string): Promise<string> {
+export async function probePiVersion(
+  executable: string,
+  cwd: string,
+  env?: NodeJS.ProcessEnv,
+  prefixArgs: string[] = [],
+  spawnCwd = cwd,
+): Promise<string> {
   try {
-    const { stdout } = await execFileAsync(executable, ["--version"], {
-      cwd,
+    const { stdout } = await execFileAsync(executable, [...prefixArgs, "--version"], {
+      cwd: spawnCwd,
+      env,
       timeout: 5_000,
       maxBuffer: 64 * 1024,
     });
@@ -368,7 +401,13 @@ export async function probePiVersion(executable: string, cwd: string): Promise<s
     return match[0];
   } catch (error) {
     const code = typeof error === "object" && error !== null && "code" in error ? String(error.code) : "";
-    if (code === "ENOENT") throw new Error(`pi executable not found: ${executable}`);
+    if (code === "ENOENT") {
+      const spawnPath = typeof error === "object" && error !== null && "path" in error ? String(error.path) : executable;
+      if (spawnCwd !== cwd) {
+        throw new Error(`Unable to start ${spawnPath}; Windows spawn cwd is unavailable: ${spawnCwd}`);
+      }
+      throw new Error(`pi executable not found: ${executable}`);
+    }
     throw error;
   }
 }
@@ -381,6 +420,19 @@ export function compareVersions(left: string, right: string): number {
     if (difference !== 0) return Math.sign(difference);
   }
   return 0;
+}
+
+function parseSlashCommand(value: unknown): SlashCommandSummary | undefined {
+  if (!isRecord(value)
+    || typeof value.name !== "string"
+    || value.name.length === 0
+    || value.name.length > 200
+    || (value.source !== "extension" && value.source !== "prompt" && value.source !== "skill")) return undefined;
+  const description = typeof value.description === "string" ? value.description.slice(0, 1_000) : undefined;
+  const location = value.location === "user" || value.location === "project" || value.location === "path"
+    ? value.location
+    : undefined;
+  return { name: value.name, description, source: value.source, location };
 }
 
 function parseModel(value: unknown): ModelSummary | undefined {

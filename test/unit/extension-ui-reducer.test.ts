@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { initialExtensionUiState, reduceExtensionUi } from "../../src/webview/extension-ui-reducer.js";
+import {
+  dismissExtensionNotification,
+  initialExtensionUiState,
+  notificationTimeout,
+  reduceExtensionUi,
+} from "../../src/webview/extension-ui-reducer.js";
 
 describe("reduceExtensionUi", () => {
   it("queues and dismisses dialogs without duplicates", () => {
@@ -24,6 +29,20 @@ describe("reduceExtensionUi", () => {
     state = reduceExtensionUi(state, { type: "widget", key: "w", placement: "aboveEditor" });
     expect(state.statuses).toEqual({});
     expect(state.widgets).toEqual({});
+  });
+
+  it("dismisses notifications and assigns severity-based lifetimes", () => {
+    const state = reduceExtensionUi(initialExtensionUiState, {
+      type: "notify",
+      id: "ready",
+      message: "remote-devices ready",
+      level: "info",
+    });
+
+    expect(dismissExtensionNotification(state, "ready").notifications).toEqual([]);
+    expect(notificationTimeout("info")).toBe(5_000);
+    expect(notificationTimeout("warning")).toBe(10_000);
+    expect(notificationTimeout("error")).toBeUndefined();
   });
 
   it("bounds notifications to the latest four", () => {

@@ -34,6 +34,13 @@ process.stdin.on("data", (chunk) => {
     if (request.type === "get_available_thinking_levels") {
       respond(request, true, { levels: ["off", "low", "medium", "high"] });
     }
+    if (request.type === "get_commands") {
+      respond(request, true, { commands: [
+        { name: "grill", description: "Align intent before implementation", source: "extension" },
+        { name: "plan", description: "Create an implementation plan", source: "prompt", location: "user" },
+        { name: "skill:remote-devices", description: "Operate remote devices", source: "skill", location: "user" },
+      ] });
+    }
     if (request.type === "set_model") {
       model = { provider: request.provider, id: request.modelId, name: request.modelId === "model-b" ? "Fixture B" : request.modelId };
       respond(request, true, model);

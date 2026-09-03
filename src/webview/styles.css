@@ -21,7 +21,7 @@ button, textarea { font: inherit; }
   height: 100vh;
   min-height: 360px;
   display: grid;
-  grid-template-rows: 42px 38px 38px minmax(0, 1fr) auto;
+  grid-template-rows: 42px 38px minmax(0, 1fr) auto;
   padding-bottom: 10px;
 }
 
@@ -79,17 +79,27 @@ button, textarea { font: inherit; }
 .controls-bar {
   min-width: 0;
   display: grid;
-  grid-template-columns: 20px minmax(0, 1fr) minmax(64px, .45fr);
-  align-items: center;
-  gap: 4px;
-  border-bottom: 1px solid var(--vscode-panel-border);
+  grid-template-columns: minmax(0, 1fr) minmax(78px, .42fr);
+  align-items: end;
+  gap: 6px;
+  padding-top: 2px;
+}
+.control-field { min-width: 0; display: grid; gap: 2px; }
+.control-field label {
+  overflow: hidden;
   color: var(--vscode-descriptionForeground);
+  font-size: 9px;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
 }
 .controls-bar select {
   min-width: 0;
   width: 100%;
   height: 28px;
-  border: 0;
+  border: 1px solid var(--vscode-dropdown-border, transparent);
+  border-radius: 3px;
   padding: 0 20px 0 5px;
   color: var(--vscode-dropdown-foreground);
   background: var(--vscode-dropdown-background);
@@ -218,6 +228,32 @@ button, textarea { font: inherit; }
 .chat-error { margin: 8px 0; padding-left: 9px; border-left: 2px solid var(--vscode-testing-iconFailed); color: var(--vscode-errorForeground); line-height: 1.45; }
 
 .bottom-area { display: grid; gap: 5px; }
+.execution-context {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+.workspace-context,
+.environment-context {
+  min-width: 0;
+  min-height: 22px;
+  display: grid;
+  grid-template-columns: 14px auto minmax(0, 1fr);
+  align-items: center;
+  gap: 5px;
+  color: var(--vscode-descriptionForeground);
+  font-size: 10px;
+}
+.environment-context .context-value { max-width: 100px; }
+.context-label { font-weight: 600; }
+.context-value {
+  overflow: hidden;
+  color: var(--vscode-foreground);
+  font-family: var(--vscode-editor-font-family);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .extension-statuses {
   min-width: 0;
   display: flex;
@@ -251,7 +287,12 @@ button, textarea { font: inherit; }
   pointer-events: none;
 }
 .extension-notification {
-  padding: 7px 9px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 24px;
+  align-items: start;
+  gap: 6px;
+  min-height: 32px;
+  padding: 6px 5px 6px 9px;
   border: 1px solid var(--vscode-notifications-border, var(--vscode-panel-border));
   border-left-width: 3px;
   border-radius: 4px;
@@ -259,7 +300,23 @@ button, textarea { font: inherit; }
   background: var(--vscode-notifications-background, var(--vscode-sideBar-background));
   box-shadow: 0 2px 8px var(--vscode-widget-shadow);
   overflow-wrap: anywhere;
+  pointer-events: auto;
 }
+.extension-notification > span { min-width: 0; padding-block: 2px; }
+.notification-dismiss {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 3px;
+  padding: 0;
+  color: var(--vscode-icon-foreground);
+  background: transparent;
+  cursor: pointer;
+}
+.notification-dismiss:hover { background: var(--vscode-toolbar-hoverBackground); }
+.notification-dismiss:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
 .notify-info { border-left-color: var(--vscode-notificationsInfoIcon-foreground); }
 .notify-warning { border-left-color: var(--vscode-notificationsWarningIcon-foreground); }
 .notify-error { border-left-color: var(--vscode-notificationsErrorIcon-foreground); }
@@ -315,6 +372,61 @@ button, textarea { font: inherit; }
   border: 1px solid var(--vscode-input-border, var(--vscode-panel-border));
   border-radius: 6px;
   background: var(--vscode-input-background);
+}
+.slash-menu {
+  position: absolute;
+  z-index: 15;
+  right: -1px;
+  bottom: calc(100% + 5px);
+  left: -1px;
+  max-height: min(320px, 50vh);
+  overflow-y: auto;
+  border: 1px solid var(--vscode-widget-border, var(--vscode-panel-border));
+  border-radius: 5px;
+  padding: 3px;
+  background: var(--vscode-editorSuggestWidget-background, var(--vscode-sideBar-background));
+  box-shadow: 0 4px 14px var(--vscode-widget-shadow);
+}
+.slash-menu button {
+  width: 100%;
+  min-height: 38px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 1px 8px;
+  border: 0;
+  border-radius: 3px;
+  padding: 5px 7px;
+  color: var(--vscode-editorSuggestWidget-foreground, var(--vscode-foreground));
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+.slash-menu button:hover,
+.slash-menu button.selected {
+  color: var(--vscode-editorSuggestWidget-selectedForeground, var(--vscode-list-activeSelectionForeground));
+  background: var(--vscode-editorSuggestWidget-selectedBackground, var(--vscode-list-activeSelectionBackground));
+}
+.slash-name {
+  min-width: 0;
+  overflow: hidden;
+  font-family: var(--vscode-editor-font-family);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.slash-source {
+  color: var(--vscode-descriptionForeground);
+  font-size: 9px;
+  text-transform: uppercase;
+}
+.slash-description {
+  grid-column: 1 / -1;
+  overflow: hidden;
+  color: var(--vscode-descriptionForeground);
+  font-size: 10px;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .composer textarea {
   width: 100%;

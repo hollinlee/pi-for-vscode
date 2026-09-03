@@ -1,7 +1,7 @@
 import { createReadStream } from "node:fs";
 import { readdir, stat } from "node:fs/promises";
 import { homedir } from "node:os";
-import path from "node:path";
+import path, { type PlatformPath } from "node:path";
 import { createInterface } from "node:readline";
 import { isRecord } from "../utils/is-record.js";
 
@@ -16,11 +16,33 @@ export interface SessionSummary {
   modified: string;
 }
 
-export class SessionStore {
-  constructor(private readonly agentDir = process.env.PI_CODING_AGENT_DIR || path.join(homedir(), ".pi", "agent")) {}
+export interface SessionCatalog {
+  list(cwd: string): Promise<SessionSummary[]>;
+}
+
+export interface SessionStoreOptions {
+  agentDir?: string;
+  cwdPath?: PlatformPath;
+  filePath?: PlatformPath;
+  toRuntimePath?: (filePath: string) => string;
+}
+
+export class SessionStore implements SessionCatalog {
+  readonly #agentDir: string;
+  readonly #cwdPath: PlatformPath;
+  readonly #filePath: PlatformPath;
+  readonly #toRuntimePath: (filePath: string) => string;
+
+  constructor(options: string | SessionStoreOptions = {}) {
+    const normalized = typeof options === "string" ? { agentDir: options } : options;
+    this.#agentDir = normalized.agentDir ?? process.env.PI_CODING_AGENT_DIR ?? path.join(homedir(), ".pi", "agent");
+    this.#cwdPath = normalized.cwdPath ?? path;
+    this.#filePath = normalized.filePath ?? path;
+    this.#toRuntimePath = normalized.toRuntimePath ?? ((filePath) => filePath);
+  }
 
   async list(cwd: string): Promise<SessionSummary[]> {
-    const resolvedCwd = path.resolve(cwd);
+    const resolvedCwd = this.#cwdPath.resolve(cwd);
     const directory = this.sessionDirectory(resolvedCwd);
     let files: string[];
     try {
@@ -35,7 +57,7 @@ export class SessionStore {
       while (nextIndex < files.length) {
         const file = files[nextIndex++];
         if (!file) continue;
-        const session = await this.#read(path.join(directory, file), resolvedCwd);
+        const session = await this.#read(this.#filePath.join(directory, file), resolvedCwd);
         if (session) sessions.push(session);
       }
     });
@@ -44,9 +66,9 @@ export class SessionStore {
   }
 
   sessionDirectory(cwd: string): string {
-    const resolved = path.resolve(cwd);
+    const resolved = this.#cwdPath.resolve(cwd);
     const safePath = `--${resolved.replace(/^[/\\]/, "").replace(/[/\\:]/g, "-")}--`;
-    return path.join(path.resolve(this.agentDir), "sessions", safePath);
+    return this.#filePath.join(this.#filePath.resolve(this.#agentDir), "sessions", safePath);
   }
 
   async #read(filePath: string, expectedCwd: string): Promise<SessionSummary | undefined> {
@@ -64,7 +86,7 @@ export class SessionStore {
         if (!entry) continue;
         if (!header) {
           if (entry.type !== "session" || typeof entry.id !== "string" || typeof entry.cwd !== "string") return undefined;
-          if (path.resolve(entry.cwd) !== expectedCwd) return undefined;
+          if (this.#cwdPath.resolve(entry.cwd) !== expectedCwd) return undefined;
           header = entry;
           continue;
         }
@@ -90,7 +112,7 @@ export class SessionStore {
         : fileStat.birthtime.toISOString();
       return {
         id: header.id,
-        path: filePath,
+        path: this.#toRuntimePath(filePath),
         cwd: header.cwd,
         name,
         firstMessage: firstMessage || "(no messages)",

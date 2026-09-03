@@ -22,6 +22,16 @@ export const initialExtensionUiState: ExtensionUiState = {
   widgets: {},
 };
 
+export function dismissExtensionNotification(state: ExtensionUiState, id: string): ExtensionUiState {
+  return { ...state, notifications: state.notifications.filter((notification) => notification.id !== id) };
+}
+
+export function notificationTimeout(level: ExtensionNotification["level"]): number | undefined {
+  if (level === "info") return 5_000;
+  if (level === "warning") return 10_000;
+  return undefined;
+}
+
 export function reduceExtensionUi(state: ExtensionUiState, event: ExtensionUiEvent): ExtensionUiState {
   switch (event.type) {
     case "dialog":

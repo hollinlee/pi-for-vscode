@@ -2,7 +2,7 @@
   "name": "pi-for-vscode",
   "displayName": "Pi for VS Code",
   "description": "Use your installed pi coding agent from VS Code.",
-  "version": "0.0.1",
+  "version": "0.0.10",
   "publisher": "hollinlee",
   "license": "MIT",
   "repository": {
@@ -14,7 +14,7 @@
   },
   "homepage": "https://github.com/hollinlee/pi-for-vscode#readme",
   "engines": {
-    "vscode": "^1.96.0"
+    "vscode": "^1.106.0"
   },
   "categories": [
     "Other",
@@ -24,7 +24,8 @@
     "workspace"
   ],
   "activationEvents": [
-    "onView:pi.sidebar"
+    "onView:pi.sidebar",
+    "onView:pi.launcher"
   ],
   "main": "./dist/extension.js",
   "files": [
@@ -45,6 +46,13 @@
     "viewsContainers": {
       "activitybar": [
         {
+          "id": "pi-for-vscode-launcher",
+          "title": "Open Pi",
+          "icon": "media/pi.svg"
+        }
+      ],
+      "secondarySidebar": [
+        {
           "id": "pi-for-vscode",
           "title": "Pi",
           "icon": "media/pi.svg"
@@ -52,6 +60,12 @@
       ]
     },
     "views": {
+      "pi-for-vscode-launcher": [
+        {
+          "id": "pi.launcher",
+          "name": "Open Pi"
+        }
+      ],
       "pi-for-vscode": [
         {
           "id": "pi.sidebar",
@@ -61,6 +75,11 @@
       ]
     },
     "commands": [
+      {
+        "command": "pi.open",
+        "title": "Pi: Open Chat",
+        "icon": "$(comment-discussion)"
+      },
       {
         "command": "pi.refreshConnection",
         "title": "Pi: Refresh Connection",
@@ -75,11 +94,33 @@
     "configuration": {
       "title": "Pi",
       "properties": {
+        "pi.executionEnvironment": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "local",
+            "wsl"
+          ],
+          "enumDescriptions": [
+            "Use WSL from Windows; otherwise run pi in the current Extension Host.",
+            "Run pi directly in the current Extension Host.",
+            "Launch pi through wsl.exe from a Windows Extension Host."
+          ],
+          "default": "auto",
+          "scope": "machine-overridable",
+          "description": "Where pi runs. Remote WSL windows always use their current Extension Host."
+        },
+        "pi.wslDistribution": {
+          "type": "string",
+          "default": "",
+          "scope": "machine-overridable",
+          "description": "WSL distribution used from Windows. Empty selects the first installed distribution."
+        },
         "pi.executablePath": {
           "type": "string",
           "default": "pi",
           "scope": "machine-overridable",
-          "description": "Path or command used to launch pi in the current Extension Host."
+          "description": "Path or command used to launch pi. In WSL bridge mode, this is a Linux path or command inside the selected distribution."
         }
       }
     }
